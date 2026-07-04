@@ -141,35 +141,25 @@ def init_view_state() -> None:
 
 def render_top_toolbar() -> str:
     init_view_state()
-    cols = st.columns([0.42, 0.22, 0.18, 0.18, 0.18, 0.62, 1.6])
-    with cols[0]:
-        font_options = ["11", "13", "15"]
-        font_size = st.selectbox(ZH_TEXT_SIZE, font_options, index=font_options.index(st.session_state["font_size"]) if st.session_state["font_size"] in font_options else 1, label_visibility="collapsed")
-        st.session_state["font_size"] = font_size
-    with cols[1]:
-        if st.button(ZH_BILINGUAL, width="stretch"):
-            st.session_state["report_language"] = "Bilingual"
-    with cols[2]:
-        if st.button("En", width="stretch"):
-            st.session_state["report_language"] = "English"
-    with cols[3]:
-        if st.button(ZH_TRAD, width="stretch"):
-            st.session_state["report_language"] = "Traditional Chinese"
-    with cols[4]:
-        if st.button(ZH_SIMP, width="stretch"):
-            st.session_state["report_language"] = "Simplified Chinese"
-    with cols[5]:
-        choice = st.selectbox(ZH_OTHER_LANG, list(OTHER_LANGUAGE_OPTIONS), label_visibility="collapsed")
-        if OTHER_LANGUAGE_OPTIONS[choice]:
-            st.session_state["report_language"] = OTHER_LANGUAGE_OPTIONS[choice]
-
     size_map = {"11": "11pt", "13": "13pt", "15": "15pt"}
     st.markdown(
         f"""
         <style>
-        .block-container {{ padding-top: 1.4rem; }}
+        .block-container {{ padding-top: 2.2rem; }}
         .stApp, .stMarkdown, .stTextInput, .stTextArea, .stSelectbox, .stRadio {{
             font-size: {size_map[st.session_state["font_size"]]};
+        }}
+        .language-toolbar {{
+            border: 1px solid rgba(120, 130, 150, 0.30);
+            border-radius: 8px;
+            padding: 10px 12px 2px 12px;
+            margin: 0 0 12px 0;
+            background: rgba(248, 250, 252, 0.88);
+        }}
+        .language-toolbar-title {{
+            color: #334155;
+            font-weight: 700;
+            margin-bottom: 4px;
         }}
         .ra-header {{
             border: 1px solid rgba(120, 130, 150, 0.35);
@@ -250,7 +240,27 @@ def render_top_toolbar() -> str:
         """,
         unsafe_allow_html=True,
     )
-    st.caption(f"{ZH_REPORT_LANG}: {st.session_state['report_language']}")
+
+    st.markdown('<div class="language-toolbar-title">Language / Display 語言及顯示</div>', unsafe_allow_html=True)
+    with st.container(border=True):
+        cols = st.columns([0.9, 1.2, 1.2, 1.4])
+        font_options = ["11", "13", "15"]
+        with cols[0]:
+            font_size = st.selectbox("文字大小 / Text size", font_options, index=font_options.index(st.session_state["font_size"]) if st.session_state["font_size"] in font_options else 1)
+            st.session_state["font_size"] = font_size
+        with cols[1]:
+            main_language = st.selectbox(
+                "Main language / 主要語言",
+                ["English", "Traditional Chinese", "Simplified Chinese"],
+                index=["English", "Traditional Chinese", "Simplified Chinese"].index(st.session_state["report_language"]) if st.session_state["report_language"] in ["English", "Traditional Chinese", "Simplified Chinese"] else 0,
+            )
+            st.session_state["report_language"] = main_language
+        with cols[2]:
+            choice = st.selectbox("Other languages / 其他語言", list(OTHER_LANGUAGE_OPTIONS))
+            if OTHER_LANGUAGE_OPTIONS[choice]:
+                st.session_state["report_language"] = OTHER_LANGUAGE_OPTIONS[choice]
+        with cols[3]:
+            st.info(f"{ZH_REPORT_LANG}: {st.session_state['report_language']}")
     return st.session_state["report_language"]
 
 
@@ -616,12 +626,6 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
-metric_cols = st.columns(4)
-metric_cols[0].metric("Risk library", f"{len(RISK_LIBRARY)} records")
-metric_cols[1].metric("Risk matrices", f"{len(RISK_MATRICES)} loaded")
-metric_cols[2].metric("Default report", "English")
-metric_cols[3].metric("Review status", "SO approval required")
-
 if "ra_stage" not in st.session_state:
     st.session_state["ra_stage"] = "collect"
 
@@ -649,13 +653,14 @@ with st.form("basic_info"):
     equipment = col2.text_area(UI["equipment"], placeholder=UI["equipment_ph"])
     confined_space = col1.radio(UI["confined"], ["No", "Yes"], horizontal=True)
     matrix_version_default = f"{selected_matrix.get('matrix_id', selected_matrix_name)} / {selected_matrix.get('matrix_name', selected_matrix_name)}"
-    standard = col2.text_input(UI["standard"], value=matrix_version_default)
+    standard = matrix_version_default
+    col2.caption(f"{UI['standard']}: {matrix_version_default}")
     project = col1.text_input(UI["project"], value="Risk Assessment Report")
     version = col2.text_input("Version / 版本", value="Rev. 0")
     output_language = col2.selectbox(
         UI["output_language"],
         REPORT_LANGUAGE_OPTIONS,
-        index=REPORT_LANGUAGE_OPTIONS.index("English"),
+        index=REPORT_LANGUAGE_OPTIONS.index(report_language) if report_language in REPORT_LANGUAGE_OPTIONS else REPORT_LANGUAGE_OPTIONS.index("English"),
     )
     method_steps = st.text_area(UI["steps"], placeholder=UI["steps_ph"], height=180)
     submitted = st.form_submit_button(UI["prepare"])
@@ -729,7 +734,7 @@ if st.session_state.get("ra_stage") in {"confirm", "generated"}:
     edited_activity = col2.text_input("Construction Activity / 施工活動", value=data.get("activity", ""), key="confirm_activity")
     edited_location = col1.text_input("Project name / 工程名稱", value=data.get("location", ""), key="confirm_location")
     edited_equipment = col2.text_area("Equipment & Tools / 設備及工具", value=data.get("equipment", ""), height=90, key="confirm_equipment")
-    edited_standard = col2.text_input("Matrix version / 矩陣版本", value=data.get("standard", ""), key="confirm_standard")
+    col2.caption(f"Matrix version / 矩陣版本: {data.get('standard', '-')}")
     edited_output_language = col1.selectbox(
         UI["output_language"],
         REPORT_LANGUAGE_OPTIONS,
@@ -748,7 +753,7 @@ if st.session_state.get("ra_stage") in {"confirm", "generated"}:
     if data.get("method_statement_text"):
         with st.expander("Method Statement extracted text", expanded=False):
             st.text_area("Extracted text preview", data["method_statement_text"][:6000], height=260, disabled=True)
-    with st.expander("Risk matrix table", expanded=False):
+    with st.expander("Selected risk matrix details / 已選風險矩陣詳情", expanded=False):
         st.dataframe(matrix_dataframe(data["risk_matrix"]), hide_index=True, width="stretch")
 
     if data.get("matched_library_records"):
@@ -787,7 +792,7 @@ if st.session_state.get("ra_stage") in {"confirm", "generated"}:
         data["activity"] = edited_activity.strip() or "To be confirmed"
         data["location"] = edited_location.strip() or "To be confirmed"
         data["equipment"] = edited_equipment.strip() or "To be confirmed"
-        data["standard"] = edited_standard.strip() or "To be confirmed"
+        data["standard"] = data.get("standard") or "To be confirmed"
         data["matched_library_records"] = matched_library_records(data["activity"], data["equipment"], confirmed_steps, data["confined_space"])
         data["report_language"] = edited_output_language
         data["language_instruction"] = LANGUAGE_INSTRUCTIONS[edited_output_language]
