@@ -1,0 +1,27 @@
+[
+  {
+    "reference_id": "REF-LD-001",
+    "category": "General OSH",
+    "document_name": "Labour Department Occupational Safety publications",
+    "short_requirement": "Use official Labour Department guidance as controlled reference source.",
+    "applicable_activity": "General construction safety",
+    "exact_clause": "To be verified by Safety Officer",
+    "verification_status": "Requires verification before issue",
+    "official_source_url": "https://www.labour.gov.hk/tc/public/content2_8.htm",
+    "last_checked_date": "To be checked",
+    "remarks": "AI must not invent exact clause numbers."
+  },
+  {
+    "reference_id": "REF-FORM-001",
+    "category": "Statutory forms",
+    "document_name": "Labour Department public forms",
+    "short_requirement": "Potential injury / dangerous occurrence forms must be confirmed by authorised person.",
+    "applicable_activity": "Accident / incident reporting",
+    "exact_clause": "To be verified by Safety Officer",
+    "verification_status": "Requires verification before issue",
+    "official_source_url": "https://www.labour.gov.hk/tc/form/public_forms.htm",
+    "last_checked_date": "To be checked",
+    "remarks": "Do not auto-submit forms."
+  }
+]
+

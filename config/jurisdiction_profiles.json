@@ -1,0 +1,68 @@
+{
+  "jurisdiction_profiles": [
+    {
+      "id": "HK_LD_OSH",
+      "display_name": "Hong Kong - Labour Department OSH / CoP",
+      "legal_reference_basis": ["Hong Kong OSH legislation", "Labour Department Codes of Practice", "Labour Department safety guidance"],
+      "default_ra_method": ["Five Steps to Risk Assessment", "JSA / HIRA"],
+      "default_matrix": "HK_5X5_DEFAULT",
+      "legal_clause_rule": "Do not invent exact clause numbers. Mark uncertain references as 'To be verified by Safety Officer'.",
+      "approval_role": "Safety Officer"
+    },
+    {
+      "id": "HK_CLIENT_CUSTOM",
+      "display_name": "Hong Kong - Client / Contractor Custom Matrix",
+      "legal_reference_basis": ["Hong Kong OSH legislation", "Client / contractor standard"],
+      "default_ra_method": ["Client RA method", "JSA / HIRA"],
+      "default_matrix": "HK_5X5_DEFAULT",
+      "legal_clause_rule": "Use reference tags unless exact clauses are verified.",
+      "approval_role": "Safety Officer / Client Representative"
+    },
+    {
+      "id": "SG_WSH_RM",
+      "display_name": "Singapore - WSH Risk Management",
+      "legal_reference_basis": ["MOM / WSHC Risk Management Code of Practice", "Singapore WSH requirements"],
+      "default_ra_method": ["Risk Management", "JSA"],
+      "default_matrix": "GENERIC_3X3",
+      "legal_clause_rule": "Use reference tags unless verified.",
+      "approval_role": "Risk Assessment Leader / WSH Personnel"
+    },
+    {
+      "id": "UK_HSE",
+      "display_name": "United Kingdom - HSE Risk Assessment",
+      "legal_reference_basis": ["HSE risk assessment guidance", "UK health and safety legislation"],
+      "default_ra_method": ["Five Steps to Risk Assessment"],
+      "default_matrix": "GENERIC_3X3",
+      "legal_clause_rule": "Use reference tags unless verified.",
+      "approval_role": "Competent Person / H&S Manager"
+    },
+    {
+      "id": "US_OSHA",
+      "display_name": "United States - OSHA / NIOSH Style",
+      "legal_reference_basis": ["OSHA / NIOSH guidance", "Company safety standard"],
+      "default_ra_method": ["JSA / JHA"],
+      "default_matrix": "HK_5X5_DEFAULT",
+      "legal_clause_rule": "Use reference tags unless verified.",
+      "approval_role": "Competent Person / Safety Manager"
+    },
+    {
+      "id": "GENERIC_ISO_IEC",
+      "display_name": "Generic ISO / IEC Framework",
+      "legal_reference_basis": ["ISO 31000", "IEC 31010 principles"],
+      "default_ra_method": ["Risk Assessment", "JSA"],
+      "default_matrix": "HK_5X5_DEFAULT",
+      "legal_clause_rule": "Use general reference tags only.",
+      "approval_role": "Authorised Person"
+    },
+    {
+      "id": "CUSTOM_PROJECT",
+      "display_name": "Custom Project / Client Standard",
+      "legal_reference_basis": ["User uploaded / client standard"],
+      "default_ra_method": ["User selected"],
+      "default_matrix": "HK_5X5_DEFAULT",
+      "legal_clause_rule": "Follow uploaded project standard. Flag uncertain items.",
+      "approval_role": "User defined"
+    }
+  ]
+}
+

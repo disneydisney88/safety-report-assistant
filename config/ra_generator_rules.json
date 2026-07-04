@@ -1,0 +1,35 @@
+{
+  "mandatory_rules": [
+    {
+      "condition": "activity contains confined_space keywords",
+      "must_include": ["competent person assessment", "permit", "approved worker", "gas testing", "ventilation", "standby person", "rescue equipment", "no unprotected rescue rule"],
+      "default_risk": "HR"
+    },
+    {
+      "condition": "activity contains work_at_height keywords",
+      "must_include": ["safe working platform", "guardrail or fall arrest system", "independent lifeline where applicable", "falling object control", "rescue arrangement"],
+      "default_risk": "HR"
+    },
+    {
+      "condition": "activity contains lifting keywords",
+      "must_include": ["lifting certificate", "SWL check", "competent operator", "signaller / rigger", "exclusion zone", "lifting plan if non-routine"],
+      "default_risk": "HR"
+    },
+    {
+      "condition": "activity contains wet coring or wire cutting keywords",
+      "must_include": ["electrical safety", "RCD / ELCB", "water control", "machine guarding", "flying object protection", "support of cut section"],
+      "default_risk": "HR"
+    },
+    {
+      "condition": "activity contains hot_work keywords",
+      "must_include": ["hot work permit", "fire extinguisher", "remove combustible materials", "fire watch", "gas cylinder control where applicable"],
+      "default_risk": "HR"
+    },
+    {
+      "condition": "activity contains plant_vehicle keywords",
+      "must_include": ["trained operator", "daily inspection", "plant-person segregation", "banksman where required", "speed control", "reversing control"],
+      "default_risk": "HR"
+    }
+  ]
+}
+

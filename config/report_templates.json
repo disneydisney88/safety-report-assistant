@@ -1,0 +1,15 @@
+{
+  "ra": {
+    "title": "Risk Assessment Draft",
+    "required_disclaimer": "AI-generated draft. To be reviewed and approved by Safety Officer / authorised person before use."
+  },
+  "inspection": {
+    "title": "Safety Inspection Finding Draft",
+    "required_disclaimer": "AI-generated draft. To be reviewed and approved by Safety Officer / authorised person before use."
+  },
+  "incident": {
+    "title": "Internal Accident / Incident Report Draft",
+    "required_disclaimer": "AI-generated draft. To be reviewed and approved by Safety Officer / authorised person before use."
+  }
+}
+

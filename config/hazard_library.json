@@ -1,0 +1,29 @@
+[
+  {
+    "hazard_id": "HZ-WAH-001",
+    "activity": "Work at height",
+    "work_step": "Access and work on elevated platform",
+    "hazard": "Fall from height",
+    "consequence": "Serious injury or fatality",
+    "standard_controls": "Use approved working platform with guardrails, toe boards, safe access, pre-use inspection, exclusion zone below and task briefing.",
+    "permit_required": "To be confirmed",
+    "competent_person_required": "Competent person inspection for scaffold / platform where applicable",
+    "inspection_points": "Platform condition, access, guardrails, housekeeping, weather and supervision",
+    "common_mistakes": "Generic training wording without platform-specific inspection and access controls",
+    "legal_reference_tags": ["Factories and Industrial Undertakings Ordinance", "Construction Sites Safety Regulations", "To be verified by Safety Officer"]
+  },
+  {
+    "hazard_id": "HZ-LIFT-001",
+    "activity": "Lifting operation",
+    "work_step": "Rigging and lifting",
+    "hazard": "Dropped load or struck-by load",
+    "consequence": "Crush injury, fatality or property damage",
+    "standard_controls": "Confirm lifting plan, lifting gear certificate, competent operator / rigger, exclusion zone, tag line where safe, communication method and weather limits.",
+    "permit_required": "Lifting permit / checklist where required by project procedure",
+    "competent_person_required": "Competent lifting supervisor / rigger / operator as applicable",
+    "inspection_points": "SWL, certificates, ground condition, load path, exclusion zone and communication",
+    "common_mistakes": "Controls do not state lifting plan, certificates or exclusion zone",
+    "legal_reference_tags": ["Lifting Appliances and Lifting Gear Regulations", "To be verified by Safety Officer"]
+  }
+]
+
