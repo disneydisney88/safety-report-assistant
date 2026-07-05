@@ -8,7 +8,6 @@ PATTERNS = [
     (re.compile(r"\b(?:\+?852[- ]?)?[2-9]\d{3}[- ]?\d{4}\b"), "[PHONE_REDACTED]"),
     (re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.-]+\b"), "[EMAIL_REDACTED]"),
     (re.compile(r"\b[A-Z]{1,2}\s?\d{4}\b"), "[VEHICLE_PLATE_REDACTED]"),
-    (re.compile(r"\b(?:permit|ptw|work permit)[\s:#-]*[A-Z0-9-]{4,}\b", re.I), "[PERMIT_REDACTED]"),
     (re.compile(r"\b(?:HK\$|USD|RMB)\s?\d[\d,]*(?:\.\d+)?\b", re.I), "[COMMERCIAL_REDACTED]"),
 ]
 
@@ -33,4 +32,3 @@ def redact_text(text: str) -> tuple[str, list[str]]:
             flags.append(replacement.strip("[]"))
             redacted = pattern.sub(replacement, redacted)
     return redacted, sorted(set(flags))
-

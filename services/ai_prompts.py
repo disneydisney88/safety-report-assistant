@@ -21,6 +21,9 @@ Risk table rules:
 - Include at least one risk row for every confirmed work step.
 - A work step may have multiple hazards where appropriate. If one work step has multiple distinct hazards, create separate items/rows for each hazard instead of combining all hazards in one cell.
 - The final number of ordinary risk rows must be at least the number of confirmed work steps. If outdoor/weather or public interface applies, add separate extra rows near the end.
+- Every item must include source_step_id copied exactly from confirmed_step_records. If the step is translated, still keep the original source_step_id.
+- Every item should include source_step_text_original, source_step_text_translated, hazard_id and hazard_category where possible.
+- Every item must include cause_of_hazard. Cause of Hazard must be the direct unsafe condition, unsafe act, failure mode or site condition. Do not put residual risk targets, assumptions, missing information, or Safety Officer review notes into cause_of_hazard.
 - Do not use the Method Statement title, section heading, safety rule, training requirement or control measure as a work step.
 - Do not repeat the same generic hazard in every row. If adverse weather, typhoon, heavy rain, strong wind or public interface is relevant, create one separate dedicated risk row near the end instead of adding it to every work step.
 - Cause of hazard must be a real cause such as unsafe access, unprotected edge, unstable working platform, falling material, manual handling, insufficient exclusion zone, lack of supervision, poor housekeeping, plant movement, weather exposure or public interface. Do not use "confirm with approved Method Statement" as the cause.
@@ -39,6 +42,7 @@ Mandatory hazard coverage:
 Quality rules:
 - Use practical site-specific controls, not generic slogans.
 - Use roles only. Do not include personal names.
+- Do not redact normal safety terms such as permit names, permit-to-work, Form 5, competent person, PPE, CoP titles or legal reference tags.
 - Use numbered-style content within fields where multiple points are needed.
 - Include "Minimum acceptable residual risk: MR or below" or equivalent wording in remarks where relevant.
 """

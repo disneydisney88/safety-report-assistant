@@ -5,8 +5,14 @@ from pydantic import BaseModel, Field
 
 
 class RAItem(BaseModel):
+    source_step_id: str = ""
+    source_step_text_original: str = ""
+    source_step_text_translated: str = ""
+    hazard_id: str = ""
+    hazard_category: str = ""
     work_step: str = "To be confirmed"
     hazard: str = "To be confirmed"
+    cause_of_hazard: str = "To be confirmed"
     possible_consequence: str = "To be confirmed"
     persons_at_risk: str = "Workers / others nearby"
     initial_risk_rating: str = "To be confirmed"

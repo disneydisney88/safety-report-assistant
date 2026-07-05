@@ -837,7 +837,7 @@ def build_ra_docx(report: dict[str, Any], ra_rows: list[dict[str, Any]], matrix:
         _set_cell_text(cells[1], _clean_for_main_risk_row(row.get("Work Step"), language, is_weather), size=10.0)
         _set_cell_text(cells[2], _numbered_text(_clean_for_main_risk_row(row.get("Hazard"), language, is_weather)), size=10.0)
         _set_cell_text(cells[3], _clean_for_main_risk_row(row.get("Persons at Risk"), language, is_weather), size=10.0)
-        _set_cell_text(cells[4], _numbered_text(_clean_for_main_risk_row(row.get("Remarks") or "Cause to be confirmed against Method Statement / site condition", language, is_weather)), size=10.0)
+        _set_cell_text(cells[4], _numbered_text(_clean_for_main_risk_row(row.get("Cause of Hazard") or row.get("Remarks") or "Cause to be confirmed against Method Statement / site condition", language, is_weather)), size=10.0)
         _set_cell_text(cells[5], _numbered_text(_clean_for_main_risk_row(row.get("Possible Consequence"), language, is_weather)), size=10.0)
         _set_cell_text(cells[6], _numbered_text(_clean_for_main_risk_row(row.get("Existing Controls"), language, is_weather)), size=10.0)
         _set_cell_text(cells[7], p_value, size=10.0, align=WD_ALIGN_PARAGRAPH.CENTER)

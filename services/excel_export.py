@@ -8,6 +8,15 @@ import pandas as pd
 from services.ai_prompts import DISCLAIMER
 
 
+INTERNAL_RA_COLUMNS = {
+    "Source Step ID",
+    "Source Step Original",
+    "Source Step Translated",
+    "Hazard ID",
+    "Hazard Category",
+}
+
+
 def matrix_rows(matrix: dict[str, Any]) -> list[dict[str, Any]]:
     if not matrix:
         return []
@@ -94,6 +103,7 @@ def build_ra_excel(report: dict[str, Any], ra_rows: list[dict[str, Any]], matrix
                 columns=["Risk Level", "Meaning", "Action Priority", "Treatment"],
             ).to_excel(writer, sheet_name="Risk Matrix", index=False)
 
-        pd.DataFrame(ra_rows).to_excel(writer, sheet_name="RA Table", index=False)
+        visible_ra_rows = [{key: value for key, value in row.items() if key not in INTERNAL_RA_COLUMNS} for row in ra_rows]
+        pd.DataFrame(visible_ra_rows).to_excel(writer, sheet_name="RA Table", index=False)
     buffer.seek(0)
     return buffer

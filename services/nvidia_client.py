@@ -82,8 +82,14 @@ def _repair_payload_for_schema(data: Any, schema: Type[BaseModel]) -> Any:
             continue
         repaired_items.append(
             {
+                "source_step_id": text_value(item.get("source_step_id") or item.get("sourceStepId") or item.get("step_id") or item.get("stepId"), ""),
+                "source_step_text_original": text_value(item.get("source_step_text_original") or item.get("sourceStepTextOriginal") or item.get("original_step") or item.get("originalStep"), ""),
+                "source_step_text_translated": text_value(item.get("source_step_text_translated") or item.get("sourceStepTextTranslated") or item.get("translated_step") or item.get("translatedStep"), ""),
+                "hazard_id": text_value(item.get("hazard_id") or item.get("hazardId"), ""),
+                "hazard_category": text_value(item.get("hazard_category") or item.get("hazardCategory"), ""),
                 "work_step": text_value(item.get("work_step") or item.get("workStep") or item.get("step") or item.get("activity") or source.get("activity"), "To be confirmed"),
                 "hazard": text_value(item.get("hazard") or item.get("hazards"), "To be confirmed"),
+                "cause_of_hazard": text_value(item.get("cause_of_hazard") or item.get("causeOfHazard") or item.get("cause") or item.get("hazard_cause") or item.get("hazardCause"), "To be confirmed"),
                 "possible_consequence": text_value(item.get("possible_consequence") or item.get("possibleConsequence") or item.get("consequence") or item.get("possible_consequences") or item.get("possibleConsequences"), "To be confirmed"),
                 "persons_at_risk": text_value(item.get("persons_at_risk") or item.get("personsAtRisk") or item.get("people_at_risk") or item.get("peopleAtRisk"), "Workers / others nearby"),
                 "initial_risk_rating": text_value(item.get("initial_risk_rating") or item.get("initialRiskRating") or item.get("initial_risk") or item.get("initialRisk") or item.get("risk_rating") or item.get("riskLevel"), "To be confirmed"),

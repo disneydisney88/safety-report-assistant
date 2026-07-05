@@ -2,6 +2,7 @@
 
 import json
 import re
+from difflib import SequenceMatcher
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -337,6 +338,10 @@ def clean_extracted_steps(raw_steps: list[str], titles: list[str] | None = None,
     return steps
 
 
+def step_records(steps: list[str]) -> list[dict[str, str]]:
+    return [{"source_step_id": f"S{idx:03d}", "step_text": step} for idx, step in enumerate(steps, start=1)]
+
+
 def profile_options() -> dict[str, dict]:
     return {profile["display_name"]: profile for profile in JURISDICTION_PROFILES}
 
@@ -446,6 +451,7 @@ def fallback_ra(data: dict) -> RADraft:
     likelihood_scale = matrix.get("likelihood_scale", [])
     default_severity = severity_scale[-1] if severity_scale else {"code": "S5", "score": 5, "label_en": "Catastrophic"}
     default_likelihood = likelihood_scale[1] if len(likelihood_scale) > 1 else {"code": "P2", "score": 2, "label_en": "Unlikely"}
+    step_ids = {record["step_text"]: record["source_step_id"] for record in step_records(data.get("confirmed_steps", []))}
     for step in data["confirmed_steps"]:
         source_records = library_records or [{}]
         for record in source_records[:2]:
@@ -462,8 +468,14 @@ def fallback_ra(data: dict) -> RADraft:
             residual_rating = f"{residual_likelihood['code']} x {default_severity['code']} = {residual_score} {residual_band.get('level', 'MR')}"
             items.append(
                 {
+                    "source_step_id": step_ids.get(step, ""),
+                    "source_step_text_original": step,
+                    "source_step_text_translated": step,
+                    "hazard_id": str(record.get("id", "")),
+                    "hazard_category": str(record.get("category", "")),
                     "work_step": step,
                     "hazard": local_text(data, "; ".join(hazards)),
+                    "cause_of_hazard": local_text(data, str(record.get("cause_of_hazard") or record.get("cause") or "Unsafe condition, unsafe act or failure mode associated with the confirmed work step")),
                     "possible_consequence": local_text(data, "; ".join(consequences)),
                     "persons_at_risk": local_text(data, "Workers, supervisors, subcontractors and persons nearby"),
                     "initial_risk_rating": initial_rating,
@@ -483,8 +495,14 @@ def fallback_ra(data: dict) -> RADraft:
 def ra_rows(draft: RADraft) -> list[dict[str, str]]:
     return [
         {
+            "Source Step ID": item.source_step_id,
+            "Source Step Original": item.source_step_text_original,
+            "Source Step Translated": item.source_step_text_translated,
+            "Hazard ID": item.hazard_id,
+            "Hazard Category": item.hazard_category,
             "Work Step": item.work_step,
             "Hazard": item.hazard,
+            "Cause of Hazard": item.cause_of_hazard,
             "Possible Consequence": item.possible_consequence,
             "Persons at Risk": item.persons_at_risk,
             "Initial Risk": item.initial_risk_rating,
@@ -506,6 +524,16 @@ def split_points_for_rows(value: str) -> list[str]:
     return [part for part in parts if part and part != "-"]
 
 
+def similar_text(a: str, b: str) -> float:
+    left = _compact_text(a)
+    right = _compact_text(b)
+    if not left or not right:
+        return 0.0
+    if left in right or right in left:
+        return 0.95
+    return SequenceMatcher(None, left, right).ratio()
+
+
 def _rating_from_matrix(matrix: dict, likelihood: int, severity: int) -> str:
     score = likelihood * severity
     level = "MR"
@@ -514,6 +542,152 @@ def _rating_from_matrix(matrix: dict, likelihood: int, severity: int) -> str:
             level = str(band.get("level", level))
             break
     return f"P{likelihood} x S{severity} = {score} {level}"
+
+
+SCAFFOLD_DISMANTLING_HAZARDS = [
+    ("SCAF-DIS-01", "Pre-dismantling inspection", "Scaffold not inspected or unsafe before dismantling", "Missing competent person inspection, Form 5 / inspection record or unsafe scaffold condition not identified"),
+    ("SCAF-DIS-02", "Fall from height", "Fall from height during scaffold dismantling", "Unprotected edge, unsafe access, insufficient lifeline or worker not clipped on"),
+    ("SCAF-DIS-03", "Falling objects", "Falling objects / flying bamboo", "Throwing bamboo, unsecured materials, no toe board / net / exclusion zone below"),
+    ("SCAF-DIS-04", "Access control", "Unauthorised access into dismantling zone", "Barricade, warning signs or access control not maintained"),
+    ("SCAF-DIS-05", "Sequence instability", "Scaffold instability due to incorrect dismantling sequence", "Incorrect top-down sequence or last-fixed-first-removed principle not followed"),
+    ("SCAF-DIS-06", "Wall tie relocation", "Scaffold instability during wall tie relocation", "Premature wall tie removal, insufficient temporary bracing or tie layout not confirmed"),
+    ("SCAF-DIS-07", "Manual handling", "Manual handling injury during bamboo passing", "Awkward posture, excessive load, poor team coordination or inadequate landing area"),
+    ("SCAF-DIS-08", "Ground struck-by", "Struck-by bamboo at ground level", "Passing bamboo without exclusion zone, banksman or communication"),
+    ("SCAF-DIS-09", "Unfinished scaffold", "Unfinished scaffold / open end not protected", "Closing position without temporary guardrail, bracing or warning tag"),
+    ("SCAF-DIS-10", "Adverse weather", "Adverse weather affecting scaffold stability", "Strong wind, heavy rain, lightning or slippery working platform"),
+    ("SCAF-DIS-11", "Post-dismantling storage", "Post-dismantling bamboo storage blocking access", "Bamboo or debris not cleared, obstructing access / traffic / plant route"),
+    ("SCAF-DIS-12", "Emergency response", "Emergency rescue after fall / collapse / falling object incident", "Rescue plan, communication, first aid or emergency access not confirmed"),
+]
+
+
+SCAFFOLD_REQUIRED_HAZARD_IDS = ["SCAF-DIS-01", "SCAF-DIS-02", "SCAF-DIS-03", "SCAF-DIS-05", "SCAF-DIS-06", "SCAF-DIS-10", "SCAF-DIS-12"]
+
+
+SCAFFOLD_HAZARD_TEXT_ZH = {
+    "SCAF-DIS-01": ("拆棚前棚架未經檢查或狀況不安全", "未由合資格人士完成拆棚前檢查、表格五 / 檢查紀錄，或未識別棚架不安全狀況"),
+    "SCAF-DIS-02": ("拆棚期間高處墮下", "臨邊未受保護、通道不安全、未設獨立救生繩或工人未扣好安全帶"),
+    "SCAF-DIS-03": ("高空墮物 / 飛竹", "竹枝被拋擲、物料未固定、未設踢腳板 / 安全網 / 下方禁區"),
+    "SCAF-DIS-05": ("拆棚次序錯誤導致棚架失穩", "未按由上而下及最後固定、最先拆除原則拆卸"),
+    "SCAF-DIS-06": ("拆除或遷移牆拉結期間棚架失穩", "過早拆除牆拉結、臨時斜撐不足或未確認拉結佈置"),
+    "SCAF-DIS-10": ("惡劣天氣影響棚架穩定", "強風、暴雨、雷暴或工作平台濕滑"),
+    "SCAF-DIS-12": ("高處墮下、倒塌或墮物事故後緊急救援", "未確認救援計劃、通訊、急救或緊急通道"),
+}
+
+
+def is_scaffold_dismantling_work(data: dict) -> bool:
+    text = " ".join([
+        data.get("activity", ""),
+        data.get("equipment", ""),
+        " ".join(data.get("confirmed_steps", [])),
+        data.get("method_statement_text", "")[:3000],
+    ]).lower()
+    return any(token in text for token in ["拆棚", "拆棚架", "dismantl", "scaffold dismant", "bamboo scaffold"])
+
+
+def scaffold_required_row(data: dict, hazard_id: str, source: dict[str, str], chinese: bool) -> dict[str, str]:
+    matrix = data.get("risk_matrix", {})
+    hazard_info = next((item for item in SCAFFOLD_DISMANTLING_HAZARDS if item[0] == hazard_id), None)
+    if not hazard_info:
+        hazard_info = (hazard_id, "Scaffold dismantling", "Scaffold dismantling hazard", "Direct unsafe condition related to scaffold dismantling")
+    hid, category, hazard_en, cause_en = hazard_info
+    work_step = source.get("step_text") or ("拆卸棚架" if chinese else "Dismantle scaffold")
+    if chinese:
+        hazard_zh, cause_zh = SCAFFOLD_HAZARD_TEXT_ZH.get(hid, (hazard_en, cause_en))
+        return {
+            "Source Step ID": source.get("source_step_id", ""),
+            "Source Step Original": source.get("step_text", ""),
+            "Source Step Translated": work_step,
+            "Hazard ID": hid,
+            "Hazard Category": category,
+            "Work Step": work_step,
+            "Hazard": hazard_zh,
+            "Cause of Hazard": cause_zh,
+            "Possible Consequence": "嚴重受傷；死亡；棚架局部或整體倒塌；下方人士受傷；財物損毀",
+            "Persons at Risk": "棚架工人、合資格人士、監督人員、下方工人及附近人士",
+            "Initial Risk": _rating_from_matrix(matrix, 3, 5),
+            "Existing Controls": "按已批准施工方案及拆棚次序施工；由合資格人士監督；設置禁區、圍欄及警告標誌；使用安全帶及獨立救生繩；禁止拋擲竹枝或物料",
+            "Additional Controls Required": "開工前核實表格五 / 棚架檢查紀錄；確認牆拉結遷移及臨時支撐安排；逐段由上而下拆卸；惡劣天氣停工及復工前再檢查；確認墮下及墮物救援安排",
+            "Residual Risk": _rating_from_matrix(matrix, 1, 5),
+            "Legal / CoP Reference": "香港職安健法例、建築地盤安全規例、竹棚架安全守則及勞工處相關指引",
+            "Permit / Competent Person": "如工程安全制度要求，須使用拆棚 / 改棚工作許可；表格五及合資格人士檢查須由安全主任核實",
+            "Inspection / Monitoring": "每日開工前檢查；合資格人士持續監督；拆除牆拉結前後檢查；惡劣天氣後復工檢查；保存檢查紀錄",
+            "Responsible Person": "合資格人士 / 工地監督 / 安全主任",
+            "Remarks": "如圖則、拉結位置或許可要求未明確，須於開工前確認並記錄",
+        }
+    return {
+        "Source Step ID": source.get("source_step_id", ""),
+        "Source Step Original": source.get("step_text", ""),
+        "Source Step Translated": "Scaffold dismantling work",
+        "Hazard ID": hid,
+        "Hazard Category": category,
+        "Work Step": "Scaffold dismantling work",
+        "Hazard": hazard_en,
+        "Cause of Hazard": cause_en,
+        "Possible Consequence": "Serious injury; fatality; partial or total scaffold collapse; injury to persons below; property damage",
+        "Persons at Risk": "Scaffold workers, competent person, supervisors, workers below and persons nearby",
+        "Initial Risk": _rating_from_matrix(matrix, 3, 5),
+        "Existing Controls": "Follow approved dismantling method and sequence; competent person supervision; exclusion zone, barriers and warning signs; safety harness with independent lifeline; no throwing or flying bamboo",
+        "Additional Controls Required": "Verify Form 5 / scaffold inspection record before work; confirm wall-tie relocation and temporary bracing; dismantle top-down by stage; suspend work in adverse weather and inspect before restart; confirm fall and falling-object rescue arrangement",
+        "Residual Risk": _rating_from_matrix(matrix, 1, 5),
+        "Legal / CoP Reference": "Hong Kong OSH legislation, Construction Sites (Safety) Regulations, Code of Practice for Bamboo Scaffolding Safety and Labour Department guidance",
+        "Permit / Competent Person": "Permit-to-work for scaffold dismantling / alteration, if required by project safety system; Form 5 and competent person inspection to be verified by Safety Officer",
+        "Inspection / Monitoring": "Daily pre-work inspection; full-time competent person supervision; inspection before and after wall-tie removal; post-weather restart inspection; inspection record retention",
+        "Responsible Person": "Competent Person / Site Supervisor / Safety Officer",
+        "Remarks": "Confirm drawings, wall-tie positions and permit requirements before work starts where not clearly stated",
+    }
+
+
+def quality_check_ra(data: dict, rows: list[dict[str, str]]) -> dict[str, object]:
+    comments: list[str] = []
+    result = "PASS FOR SO REVIEW"
+    seen = set()
+    for row in rows:
+        key = (
+            str(row.get("Source Step ID") or row.get("Work Step", "")).strip().lower(),
+            str(row.get("Hazard", "")).strip().lower(),
+        )
+        if key in seen:
+            comments.append("Duplicate RA row detected for the same source step and hazard.")
+        seen.add(key)
+
+    visible_keys = [
+        "Work Step",
+        "Hazard",
+        "Cause of Hazard",
+        "Possible Consequence",
+        "Persons at Risk",
+        "Existing Controls",
+        "Additional Controls Required",
+        "Legal / CoP Reference",
+        "Permit / Competent Person",
+        "Inspection / Monitoring",
+        "Responsible Person",
+        "Remarks",
+    ]
+    all_text = "\n".join(" ".join(str(row.get(key, "")) for key in visible_keys) for row in rows)
+    if "[PERMIT_REDACTED]" in all_text:
+        comments.append("Permit wording was redacted incorrectly.")
+    if re.search(r"task-specific fall|unsafe working platform hazard", all_text, flags=re.I):
+        comments.append("Generic fallback hazard wording remains in the RA table.")
+    language = data.get("report_language", "English")
+    if language == "English" and re.search(r"[\u4e00-\u9fff]", all_text):
+        comments.append("Mixed language detected: English report contains Chinese in the main RA table.")
+    if language in {"Traditional Chinese", "Simplified Chinese"} and re.search(r"\b(Follow approved Method Statement|Task-specific|Workers, supervisors|Site Supervisor)\b", all_text):
+        comments.append("Mixed language detected: Chinese report contains English fallback sentences.")
+    for row in rows:
+        cause = str(row.get("Cause of Hazard", ""))
+        if re.search(r"minimum acceptable residual risk|to be confirmed|SO review|Safety Officer", cause, flags=re.I):
+            comments.append("Cause / remarks mapping needs review: assumptions or review notes may be in the cause field.")
+            break
+    if is_scaffold_dismantling_work(data):
+        hazard_text = "\n".join(str(row.get("Hazard", "")) + " " + str(row.get("Hazard ID", "")) for row in rows).lower()
+        required_tokens = ["scaf-dis-02", "scaf-dis-03", "scaf-dis-05", "scaf-dis-06", "scaf-dis-10"]
+        missing = [token.upper() for token in required_tokens if token not in hazard_text]
+        if missing:
+            comments.append("Missing scaffold dismantling critical hazards: " + ", ".join(missing))
+    if comments:
+        result = "REVISE REQUIRED"
+    return {"result": result, "comments": comments}
 
 
 def ensure_required_ra_rows(data: dict, rows: list[dict[str, str]]) -> list[dict[str, str]]:
@@ -557,6 +731,7 @@ def ensure_required_ra_rows(data: dict, rows: list[dict[str, str]]) -> list[dict
             return {
                 "Work Step": step,
                 "Hazard": "與工序相關的高處墮下、物料墮下、通道或作業面不安全",
+                "Cause of Hazard": "工作通道、臨邊防護、物料固定或作業面狀況未按實際工地情況妥善控制",
                 "Possible Consequence": "嚴重受傷或死亡；下方人士受傷；財物損壞",
                 "Persons at Risk": "工人、監督人員、分判商及附近人士",
                 "Initial Risk": _rating_from_matrix(matrix, 2, 5),
@@ -569,9 +744,11 @@ def ensure_required_ra_rows(data: dict, rows: list[dict[str, str]]) -> list[dict
                 "Responsible Person": "工地監督 / 安全主任",
                 "Remarks": "須按實際工地情況確認危害成因及控制措施",
             }
+        display_step = "Confirmed work step requiring risk assessment" if re.search(r"[\u4e00-\u9fff]", step) else step
         return {
-            "Work Step": step,
-            "Hazard": "Task-specific fall, falling object, unsafe access or unsafe working platform hazard",
+            "Work Step": display_step,
+            "Hazard": "Fall, falling object, unsafe access or unsafe working platform related to the confirmed work step",
+            "Cause of Hazard": "Access, edge protection, material restraint or working platform condition not adequately controlled for the actual site condition",
             "Possible Consequence": "Serious injury or fatality; injury to persons below; property damage",
             "Persons at Risk": "Workers, supervisors, subcontractors and persons nearby",
             "Initial Risk": _rating_from_matrix(matrix, 2, 5),
@@ -585,17 +762,39 @@ def ensure_required_ra_rows(data: dict, rows: list[dict[str, str]]) -> list[dict
             "Remarks": "Cause and controls shall be verified against actual site condition",
         }
 
-    existing_steps = {str(row.get("Work Step", "")).strip() for row in rows}
-    for step in data.get("confirmed_steps", []):
-        if step and step.strip() not in existing_steps:
-            rows.append(generic_step_row(step.strip()))
-            existing_steps.add(step.strip())
+    step_meta = step_records(data.get("confirmed_steps", []))
+    covered_ids = {str(row.get("Source Step ID", "")).strip() for row in rows if row.get("Source Step ID")}
+    for meta in step_meta:
+        step_id = meta["source_step_id"]
+        step = meta["step_text"].strip()
+        if not step:
+            continue
+        text_covered = any(
+            similar_text(step, str(row.get("Source Step Original") or row.get("Source Step Translated") or row.get("Work Step", ""))) >= 0.72
+            for row in rows
+        )
+        if step_id not in covered_ids and not text_covered:
+            fallback = generic_step_row(step)
+            fallback["Source Step ID"] = step_id
+            fallback["Source Step Original"] = step
+            fallback["Source Step Translated"] = step
+            rows.append(fallback)
+            covered_ids.add(step_id)
+
+    if is_scaffold_dismantling_work(data):
+        existing_hazard_ids = {str(row.get("Hazard ID", "")).strip().upper() for row in rows}
+        source = step_meta[0] if step_meta else {"source_step_id": "S001", "step_text": "拆卸棚架" if chinese else "Dismantle scaffold"}
+        for hazard_id in SCAFFOLD_REQUIRED_HAZARD_IDS:
+            if hazard_id not in existing_hazard_ids:
+                rows.append(scaffold_required_row(data, hazard_id, source, chinese))
+                existing_hazard_ids.add(hazard_id)
 
     def row_en(kind: str) -> dict[str, str]:
         if kind == "weather":
             return {
                 "Work Step": "Work under adverse weather or extreme site conditions",
                 "Hazard": "Heavy rain; strong wind; lightning; typhoon signal; wet or slippery working surface",
+                "Cause of Hazard": "Adverse weather creates unstable access, slippery working surface, poor visibility or loss of control of materials and plant",
                 "Possible Consequence": "Serious injury; fall from height; struck by object; loss of control of materials or plant",
                 "Persons at Risk": "Workers, supervisors, subcontractors, visitors and persons nearby",
                 "Initial Risk": _rating_from_matrix(matrix, 3, 4),
@@ -611,6 +810,7 @@ def ensure_required_ra_rows(data: dict, rows: list[dict[str, str]]) -> list[dict
         return {
             "Work Step": "Control interface with public, pedestrians, traffic or adjacent occupied areas",
             "Hazard": "Falling objects; unauthorised access; moving plant interface; obstruction to public route; dust, noise or nuisance",
+            "Cause of Hazard": "Public route, occupied area, traffic or plant interface is not physically separated from the work area",
             "Possible Consequence": "Injury to public; property damage; traffic incident; complaint or enforcement action",
             "Persons at Risk": "Public, pedestrians, occupants, visitors, workers and traffic controllers",
             "Initial Risk": _rating_from_matrix(matrix, 3, 5),
@@ -629,6 +829,7 @@ def ensure_required_ra_rows(data: dict, rows: list[dict[str, str]]) -> list[dict
             return {
                 "Work Step": "惡劣天氣或極端工地情況下工作",
                 "Hazard": "暴雨；強風；雷暴；颱風信號；工作面濕滑",
+                "Cause of Hazard": "惡劣天氣導致通道不穩、工作面濕滑、能見度下降或物料 / 機械失控",
                 "Possible Consequence": "嚴重受傷；高處墮下；被物件擊中；物料或機械失控",
                 "Persons at Risk": "工人、監督人員、分判商、訪客及附近人士",
                 "Initial Risk": _rating_from_matrix(matrix, 3, 4),
@@ -644,6 +845,7 @@ def ensure_required_ra_rows(data: dict, rows: list[dict[str, str]]) -> list[dict
         return {
             "Work Step": "控制與公眾、行人、交通或鄰近佔用範圍的介面",
             "Hazard": "高空墮物；未經授權進入；流動機械介面；阻塞公眾通道；塵埃、噪音或滋擾",
+            "Cause of Hazard": "公眾通道、佔用範圍、交通或機械介面未與施工區有效分隔",
             "Possible Consequence": "公眾受傷；財物損毀；交通意外；投訴或執法行動",
             "Persons at Risk": "公眾、行人、佔用人、訪客、工人及交通管制人員",
             "Initial Risk": _rating_from_matrix(matrix, 3, 5),
@@ -684,6 +886,8 @@ def build_hidden_report_prompt(data: dict) -> str:
         triggers.append("Public interface: create a separate public-interface / falling-object risk row where relevant; do not repeat public wording in every ordinary work-step row.")
     if any(token in joined for token in ["crane", "lifting", "hoist", "plant", "machine", "forklift", "吊", "起重", "機械", "叉車"]):
         triggers.append("Plant / lifting interface: include exclusion zone, competent operator, lifting gear inspection, communication and stability controls.")
+    if is_scaffold_dismantling_work(data):
+        triggers.append("Scaffold dismantling: include scaffold inspection, Form 5 / competent person inspection, independent lifeline, exclusion zone, flying bamboo prohibition, wall tie relocation, temporary bracing, manual bamboo passing, post-dismantling clearance and emergency rescue.")
     if any(token in joined for token in ["hot work", "welding", "cutting", "grinding", "熱工", "焊", "切割", "打磨"]):
         triggers.append("Hot work: include hot work permit, fire watch, combustible material control and post-work fire check.")
     if not triggers:
@@ -711,11 +915,17 @@ def build_hidden_report_prompt(data: dict) -> str:
             "Confirmed work steps:",
             steps,
             "",
+            "Confirmed step records with stable IDs:",
+            json.dumps(step_records(data.get("confirmed_steps", [])), ensure_ascii=False, indent=2),
+            "",
             "Work-step quality rules:",
             "- Use only real sequential work activities as work steps.",
             "- Do not treat the Method Statement title, section heading, training requirement, PPE requirement or control measure as a work step.",
             "- Hazard cause must state the direct unsafe condition or exposure; never use 'confirm with approved Method Statement' as the cause.",
+            "- Populate cause_of_hazard separately. Do not put assumptions, residual-risk targets, missing information, or Safety Officer review notes into cause_of_hazard.",
             "- Create at least one risk item for every confirmed work step.",
+            "- Copy the exact source_step_id into every risk item. Do not rely on translated work-step text for matching.",
+            "- Do not redact normal safety terms. Permit names, permit-to-work, Form 5, competent person, PPE, CoP title and legal reference tags are allowed report text.",
             "- If a work step has multiple distinct hazards, split them into separate risk items/rows instead of placing several hazards in one hazard cell.",
             "- Add adverse weather and public interface as separate final rows when applicable.",
             "",
@@ -724,6 +934,9 @@ def build_hidden_report_prompt(data: dict) -> str:
             "",
             "Detected mandatory coverage triggers:",
             "\n".join(f"- {trigger}" for trigger in triggers),
+            "",
+            "Scaffold dismantling hazard template when applicable:",
+            "\n".join(f"- {hid}: {hazard} ({category}) cause: {cause}" for hid, category, hazard, cause in SCAFFOLD_DISMANTLING_HAZARDS) if is_scaffold_dismantling_work(data) else "Not applicable.",
             "",
             "Return the completed RADraft JSON only. Do not explain the report outside JSON.",
         ]
@@ -982,6 +1195,7 @@ if st.session_state.get("ra_stage") in {"confirm", "generated"}:
         if use_ai_backend:
             payload = {
                 **data,
+                "confirmed_step_records": step_records(confirmed_steps),
                 "method_statement_text": data.get("method_statement_text", "")[:12000],
                 "hidden_report_prompt": build_hidden_report_prompt(data),
                 "instruction": (
@@ -989,6 +1203,8 @@ if st.session_state.get("ra_stage") in {"confirm", "generated"}:
                     "Use the uploaded Method Statement text, confirmed steps and matched risk library first. Do not invent exact legal clause numbers. "
                     "Use the selected jurisdiction profile and selected risk matrix. Calculate risk scores as likelihood x severity and ensure LR/MR/HR matches the selected matrix band. "
                     "The RA table must include at least one risk row for every confirmed construction step. "
+                    "Every item must include the correct source_step_id from confirmed_step_records. "
+                    "If one confirmed step has multiple hazards, create multiple items with the same source_step_id and different hazard_id. "
                     "Translate all report content, including construction steps, hazards, consequences, control measures, PPE/training and residual risk remarks, into the selected report output language. "
                     "Each high-risk activity must include hazards, consequences, specific controls, permit/certificate requirements, competent person requirements, inspection points and emergency response. "
                     "Follow hidden_report_prompt exactly; it is the controlling professional report specification. "
@@ -1018,6 +1234,14 @@ if st.session_state.get("ra_stage") == "generated" and "ra_draft" in st.session_
     data = st.session_state["ra_input"]
     draft = RADraft.model_validate(st.session_state["ra_draft"])
     rows = ensure_required_ra_rows(data, ra_rows(draft))
+    checker = quality_check_ra(data, rows)
+    if checker["result"] == "PASS FOR SO REVIEW":
+        st.success("RA Quality Checker: PASS FOR SO REVIEW")
+    else:
+        st.warning(f"RA Quality Checker: {checker['result']}")
+        with st.expander("Checker comments / 檢查意見", expanded=True):
+            for comment in checker.get("comments", []):
+                st.write(f"- {comment}")
     download_language = st.selectbox(
         UI["output_language"],
         REPORT_LANGUAGE_OPTIONS,
