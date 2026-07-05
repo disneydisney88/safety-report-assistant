@@ -1,6 +1,6 @@
 import streamlit as st
 
-from services import google_drive, google_sheets, nvidia_client
+from services import nvidia_client
 from services.i18n import LANG_OPTIONS, t
 
 st.set_page_config(page_title="HK Safety Report Assistant", layout="wide")
@@ -20,10 +20,7 @@ st.write(
 )
 
 st.subheader(t("config_status"))
-col1, col2, col3 = st.columns(3)
-col1.metric("NVIDIA API", t("loaded") if nvidia_client.has_api_key() else t("missing"))
-col2.metric("Google Sheets", t("loaded") if google_sheets.configured() else t("missing"))
-col3.metric("Google Drive", t("loaded") if google_drive.configured() else t("missing"))
+st.metric("NVIDIA API", t("loaded") if nvidia_client.has_api_key() else t("missing"))
 
 if st.button("Test NVIDIA backend connection"):
     ok, message = nvidia_client.test_connection()
@@ -32,8 +29,10 @@ if st.button("Test NVIDIA backend connection"):
     else:
         st.error(f"NVIDIA backend connection failed: {message}")
 
-st.markdown(
-    """
-This MVP stores no secrets in code and uses backend Streamlit Secrets for NVIDIA.
-"""
-)
+if not nvidia_client.has_api_key():
+    st.info(
+        "Set the NVIDIA key in Streamlit Cloud Secrets as `NVIDIA_API_KEY`. "
+        "Do not paste the key into GitHub code or public files."
+    )
+
+st.page_link("pages/1_RA_Generator.py", label="Open RA Generator", icon="📄")
