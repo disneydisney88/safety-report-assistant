@@ -556,9 +556,9 @@ def build_hidden_report_prompt(data: dict) -> str:
     if data.get("confined_space") == "Yes":
         triggers.append("Confined space: include gas testing, ventilation, permit-to-work, standby person and rescue controls.")
     if any(token in joined for token in ["outdoor", "external", "outside", "height", "scaffold", "roof", "facade", "weather", "rain", "typhoon", "戶外", "室外", "高空", "棚架", "外牆", "天氣", "颱風"]):
-        triggers.append("Outdoor / weather-exposed work: include bad weather, heavy rain, strong wind, typhoon signal and post-weather inspection controls.")
+        triggers.append("Outdoor / weather-exposed work: create one separate adverse-weather risk row near the end; do not repeat weather wording in every ordinary work-step row.")
     if any(token in joined for token in ["public", "pedestrian", "traffic", "road", "footpath", "nearby", "公眾", "行人", "交通", "道路", "附近"]):
-        triggers.append("Public interface: include pedestrian / traffic / occupant protection, falling object controls, barriers and access management.")
+        triggers.append("Public interface: create a separate public-interface / falling-object risk row where relevant; do not repeat public wording in every ordinary work-step row.")
     if any(token in joined for token in ["crane", "lifting", "hoist", "plant", "machine", "forklift", "吊", "起重", "機械", "叉車"]):
         triggers.append("Plant / lifting interface: include exclusion zone, competent operator, lifting gear inspection, communication and stability controls.")
     if any(token in joined for token in ["hot work", "welding", "cutting", "grinding", "熱工", "焊", "切割", "打磨"]):
@@ -587,6 +587,11 @@ def build_hidden_report_prompt(data: dict) -> str:
             "",
             "Confirmed work steps:",
             steps,
+            "",
+            "Work-step quality rules:",
+            "- Use only real sequential work activities as work steps.",
+            "- Do not treat the Method Statement title, section heading, training requirement, PPE requirement or control measure as a work step.",
+            "- Hazard cause must state the direct unsafe condition or exposure; never use 'confirm with approved Method Statement' as the cause.",
             "",
             "Risk band rules from selected matrix:",
             "\n".join(band_lines) or "Use selected matrix in payload.",

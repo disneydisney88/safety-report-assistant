@@ -28,7 +28,7 @@ def extract_text_from_upload(file_obj: BinaryIO | BytesIO | bytes, file_name: st
         return extract_pdf_text(raw)
     if suffix == "txt":
         return raw.decode("utf-8", errors="ignore")[:MAX_EXTRACT_CHARS]
-    raise ValueError("Only .docx, .pdf and .txt Method Statement files are supported in this MVP.")
+    raise ValueError("Only .docx, .pdf and .txt Method Statement files are supported.")
 
 
 def extract_docx_text(raw: bytes) -> str:
@@ -61,6 +61,89 @@ def extract_pdf_text(raw: bytes) -> str:
 
 
 def infer_steps_from_ms_text(text: str, max_steps: int = 14) -> list[str]:
+    def normalize_step(value: str) -> str:
+        clean = re.sub(r"\s+", "", value.strip())
+        clean = re.sub(r"^[一二三四五六七八九十\d]+[\.、:：)\)]", "", clean)
+        clean = re.sub(r"(.{2,12})\1{2,}", r"\1", clean)
+        return clean.strip(" ：:.-")
+
+    def normalize_line(value: str) -> str:
+        clean = re.sub(r"\s+", " ", value.strip())
+        clean = re.sub(r"^\s*\d+\s*[\.)、]?\s*", "", clean)
+        clean = clean.replace(" /", "/").replace("/ ", "/")
+        clean = clean.replace(" 。", "。").replace(" ，", "，")
+        clean = re.sub(r"(.{6,20})\1{1,}", r"\1", clean)
+        return clean.strip(" ：:.-")
+
+    def is_heading_or_control(value: str) -> bool:
+        clean = normalize_step(value)
+        if len(clean) < 6 or len(clean) > 240:
+            return True
+        if re.search(r"(.{3,12})\1{1,}", clean):
+            return True
+        heading_terms = ["施工方案", "安全程序及措施", "安全準備", "準備工作", "拆棚後安排", "適用法例", "工地要求", "圖一", "圖二"]
+        if any(term in clean for term in heading_terms) and len(clean) <= 32:
+            return True
+        control_starts = ["必須", "所有", "每日", "如遇", "如因", "如竹棚", "為免", "嚴禁", "參加", "合資格", "派遣", "安裝足夠", "有關實際"]
+        if any(clean.startswith(term) for term in control_starts):
+            return True
+        control_terms = ["大原則", "訓練", "佩帶", "安全帽", "安全帶", "嚴禁", "檢查", "記錄", "提醒工人", "非作業人員"]
+        action_terms = ["拆除", "拆卸", "傳遞", "運走", "清走", "安裝", "封閉"]
+        if any(term in clean for term in control_terms) and not any(term in clean for term in action_terms):
+            return True
+        return False
+
+    def unique_append(target: list[str], value: str) -> None:
+        clean = normalize_line(value)
+        compact = normalize_step(clean)
+        if clean and clean not in target and not is_heading_or_control(compact):
+            target.append(clean[:260])
+
+    lines = (text or "").splitlines()
+
+    # Prefer the real construction sequence section, e.g. "二. 拆棚工序".
+    in_sequence = False
+    section_steps: list[str] = []
+    idx = 0
+    while idx < len(lines):
+        line = lines[idx].strip()
+        compact = normalize_step(line)
+        idx += 1
+        if not compact:
+            continue
+        if any(marker in compact for marker in ["拆棚工序", "施工工序", "施工程序", "工作程序", "工作步驟"]):
+            in_sequence = True
+            continue
+        if in_sequence and re.match(r"^[ABC]\)?|^[一二三四五六七八九十][\.:：]", line) and section_steps:
+            break
+        if in_sequence and re.match(r"^\s*\d+[\.)、]\s*", line):
+            combined = line
+            while idx < len(lines):
+                next_line = lines[idx].strip()
+                if not next_line:
+                    idx += 1
+                    continue
+                if re.match(r"^\s*\d+[\.)、]\s*", next_line) or re.match(r"^[ABC]\)?|^[一二三四五六七八九十][\.:：]", next_line):
+                    break
+                compact_next = normalize_step(next_line)
+                if (
+                    any(stop in compact_next for stop in ["有限公司", "Tel", "Fax", "____", "WINGLEE", "SCAFFOLDING", "HennessyRoad"])
+                    or re.fullmatch(r"\d+/\d+", compact_next)
+                ):
+                    idx += 1
+                    continue
+                next_line = re.sub(r"[（(]\s*圖[一二三四五六七八九十\d]+\s*[）)]", "", next_line).strip()
+                if not next_line:
+                    idx += 1
+                    continue
+                combined += next_line
+                idx += 1
+            unique_append(section_steps, combined)
+            if len(section_steps) >= max_steps:
+                return section_steps
+    if section_steps:
+        return section_steps[:max_steps]
+
     steps: list[str] = []
     skip_first_cells = {
         "work activity",
@@ -70,21 +153,20 @@ def infer_steps_from_ms_text(text: str, max_steps: int = 14) -> list[str]:
         "risk score",
         "prepared by",
     }
-    for line in (text or "").splitlines():
+    for line in lines:
         cells = [cell.strip() for cell in line.split(" | ")]
         if len(cells) < 5:
             continue
-        first_cell = cells[0].strip(" \t-*•0123456789.)、")
+        first_cell = normalize_step(cells[0])
         if not first_cell or first_cell.lower() in skip_first_cells:
             continue
-        if 6 <= len(first_cell) <= 180 and first_cell not in steps:
-            steps.append(first_cell)
+        unique_append(steps, first_cell)
         if len(steps) >= max_steps:
             return steps
 
-    markers = ("step", "sequence", "procedure", "method", "工序", "步驟", "程序", "施工")
-    for line in (text or "").splitlines():
-        clean = line.strip(" \t-*•0123456789.)、")
+    markers = ("step", "sequence", "procedure", "work sequence", "工序", "程序", "步驟")
+    for line in lines:
+        clean = normalize_step(line)
         if not clean or len(clean) < 8:
             continue
         lower = clean.lower()
@@ -92,8 +174,8 @@ def infer_steps_from_ms_text(text: str, max_steps: int = 14) -> list[str]:
             continue
         numbered_line = bool(re.match(r"^\s*(\d+[\.)、]|step\s+\d+)", line, flags=re.IGNORECASE))
         looks_like_step = numbered_line or any(marker in lower for marker in markers)
-        if looks_like_step and clean not in steps:
-            steps.append(clean[:240])
+        if looks_like_step:
+            unique_append(steps, clean)
         if len(steps) >= max_steps:
             break
     return steps

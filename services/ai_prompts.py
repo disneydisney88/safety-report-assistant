@@ -18,6 +18,9 @@ Risk table rules:
 - The items array must not be empty.
 - Include at least one risk row for every confirmed work step.
 - A work step may have multiple hazards where appropriate.
+- Do not use the Method Statement title, section heading, safety rule, training requirement or control measure as a work step.
+- Do not repeat the same generic hazard in every row. If adverse weather, typhoon, heavy rain, strong wind or public interface is relevant, create one separate dedicated risk row near the end instead of adding it to every work step.
+- Cause of hazard must be a real cause such as unsafe access, unprotected edge, unstable working platform, falling material, manual handling, insufficient exclusion zone, lack of supervision, poor housekeeping, plant movement, weather exposure or public interface. Do not use "confirm with approved Method Statement" as the cause.
 - Each item must include work_step, hazard, possible_consequence, persons_at_risk, initial_risk_rating, existing_control_measures, additional_control_measures_required, residual_risk_rating, legal_cop_reference, permit_certificate_competent_person_required, inspection_monitoring_points, responsible_person and remarks_items_to_be_confirmed.
 - initial_risk_rating and residual_risk_rating must use this format: P# x S# = score LR/MR/HR.
 - Residual risk should normally be MR or below after additional controls. If it remains HR, explain why and mark further review required.

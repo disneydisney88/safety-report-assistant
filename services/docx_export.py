@@ -468,21 +468,38 @@ def _display_text(text: Any, language: str) -> str:
     return str(text or "-")
 
 
-def _split_points(text: Any) -> list[str]:
-    raw = str(text or "").replace("\r", "\n")
-    parts: list[str] = []
-    for chunk in re.split(r"\n|;|•|\u2022", raw):
-        clean = chunk.strip(" \t-")
-        if clean and clean != "-":
-            parts.append(clean)
-    return parts
+def _is_weather_row(row: dict[str, Any]) -> bool:
+    text = " ".join(str(row.get(key, "")) for key in ("Work Step", "Hazard", "Remarks")).lower()
+    return any(token in text for token in ["weather", "typhoon", "rain", "惡劣天氣", "天氣", "颱風", "暴雨", "強風"])
+
+
+def _clean_for_main_risk_row(text: Any, language: str, is_weather: bool = False) -> str:
+    value = _display_text(text, language)
+    if not is_weather:
+        remove_terms = [
+            "Weather effect",
+            "天氣影響",
+            "Stop work in adverse weather",
+            "不安全天氣下停止工作",
+            "惡劣天氣",
+        ]
+        for term in remove_terms:
+            value = value.replace(term, "")
+    generic_causes = [
+        "Confirm with approved Method Statement and site-specific conditions",
+        "根據已批准施工方法書及工地實際情況確認",
+        "Cause to be confirmed against Method Statement / site condition",
+    ]
+    if any(term in value for term in generic_causes):
+        return "-"
+    return value
 
 
 def _split_points(text: Any) -> list[str]:
     raw = str(text or "").replace("\r", "\n")
     parts: list[str] = []
     for chunk in re.split(r"\n|;|\u2022|\u30fb|\uff1b", raw):
-        clean = chunk.strip(" \t-")
+        clean = re.sub(r"^\s*\d+[\.)、]\s*", "", chunk.strip(" \t-"))
         if clean and clean != "-":
             parts.append(clean)
     return parts
@@ -490,6 +507,9 @@ def _split_points(text: Any) -> list[str]:
 
 def _numbered_text(text: Any) -> str:
     points = _split_points(text)
+    if not points:
+        return "-"
+    points = [point for point in points if point.strip()]
     if not points:
         return "-"
     return "\n".join(f"{idx}. {point}" for idx, point in enumerate(points, start=1))
@@ -760,41 +780,38 @@ def build_ra_docx(report: dict[str, Any], ra_rows: list[dict[str, Any]], matrix:
         lbl["further"],
         lbl["training_ppe"],
         lbl["action_by"],
-        lbl["residual"],
-        lbl["actual"],
     ]
     table = doc.add_table(rows=1, cols=len(headers))
     for idx, header in enumerate(headers):
         _set_cell_text(table.rows[0].cells[idx], header, bold=True, size=10.5)
     for item_no, row in enumerate(ra_rows, start=1):
         cells = table.add_row().cells
+        is_weather = _is_weather_row(row)
         p_value, ic_value = _extract_probability_impact(row.get("Initial Risk"))
         residual_score = _extract_score(row.get("Residual Risk"))
         residual_code = _extract_level_code(row.get("Residual Risk"))
         actual_residual = f"{residual_score or '-'} {residual_code}".strip()
         _set_cell_text(cells[0], item_no, size=10.5)
-        _set_cell_text(cells[1], _display_text(row.get("Work Step"), language), size=10.5)
-        _set_cell_text(cells[2], _numbered_text(_display_text(row.get("Hazard"), language)), size=10.5)
-        _set_cell_text(cells[3], _display_text(row.get("Persons at Risk"), language), size=10.5)
-        _set_cell_text(cells[4], _numbered_text(_display_text(row.get("Remarks") or "Cause to be confirmed against Method Statement / site condition", language)), size=10.5)
-        _set_cell_text(cells[5], _numbered_text(_display_text(row.get("Possible Consequence"), language)), size=10.5)
-        _set_cell_text(cells[6], _numbered_text(_display_text(row.get("Existing Controls"), language)), size=10.5)
+        _set_cell_text(cells[1], _clean_for_main_risk_row(row.get("Work Step"), language, is_weather), size=10.5)
+        _set_cell_text(cells[2], _numbered_text(_clean_for_main_risk_row(row.get("Hazard"), language, is_weather)), size=10.5)
+        _set_cell_text(cells[3], _clean_for_main_risk_row(row.get("Persons at Risk"), language, is_weather), size=10.5)
+        _set_cell_text(cells[4], _numbered_text(_clean_for_main_risk_row(row.get("Remarks") or "Cause to be confirmed against Method Statement / site condition", language, is_weather)), size=10.5)
+        _set_cell_text(cells[5], _numbered_text(_clean_for_main_risk_row(row.get("Possible Consequence"), language, is_weather)), size=10.5)
+        _set_cell_text(cells[6], _numbered_text(_clean_for_main_risk_row(row.get("Existing Controls"), language, is_weather)), size=10.5)
         _set_cell_text(cells[7], p_value, size=10.5)
         _set_cell_text(cells[8], ic_value, size=10.5)
         _set_cell_text(cells[9], row.get("Initial Risk"), size=10.5)
-        _set_cell_text(cells[10], _numbered_text(_display_text(row.get("Additional Controls Required"), language)), size=10.5)
-        _set_cell_text(cells[11], _numbered_text(_display_text(row.get("Permit / Competent Person") or "Induction / task briefing / suitable PPE", language)), size=10.5)
-        _set_cell_text(cells[12], _display_text(row.get("Responsible Person"), language), size=10.5)
-        _set_cell_text(cells[13], row.get("Residual Risk"), size=10.5)
-        _set_cell_text(cells[14], actual_residual, size=10.5)
+        further = _clean_for_main_risk_row(row.get("Additional Controls Required"), language, is_weather)
+        if row.get("Residual Risk"):
+            further = f"{further}\nResidual / 剩餘: {row.get('Residual Risk')} ({actual_residual})"
+        _set_cell_text(cells[10], _numbered_text(further), size=10.5)
+        _set_cell_text(cells[11], _numbered_text(_clean_for_main_risk_row(row.get("Permit / Competent Person") or "Induction / task briefing / suitable PPE", language, is_weather)), size=10.5)
+        _set_cell_text(cells[12], _clean_for_main_risk_row(row.get("Responsible Person"), language, is_weather), size=10.5)
         initial_score = _extract_score(row.get("Initial Risk"))
         if initial_score is not None:
             _set_cell_shading(cells[9], _risk_fill(initial_score))
-        if residual_score is not None:
-            _set_cell_shading(cells[13], _risk_fill(residual_score))
-            _set_cell_shading(cells[14], _risk_fill(residual_score))
     _style_table(table, header_fill="FFF44F")
-    _set_table_widths(table, [0.4, 1.1, 1.15, 1.0, 1.35, 1.15, 2.0, 0.35, 0.35, 0.75, 1.5, 1.1, 0.95, 0.85, 0.85])
+    _set_table_widths(table, [0.35, 1.35, 1.25, 1.0, 1.15, 0.9, 1.55, 0.32, 0.32, 0.82, 1.85, 1.95, 1.55])
 
     doc.add_paragraph(static.get("minimum_acceptable_risk", "Minimum acceptable residual risk: MR or below unless specifically accepted."))
     doc.add_paragraph(static.get("pi_note", "P: probability or likelihood rating; IC: Impact Consequence rating."))
