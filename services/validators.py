@@ -26,6 +26,15 @@ class RADraft(BaseModel):
     items: list[RAItem] = Field(default_factory=list)
 
 
+class MethodStatementExtraction(BaseModel):
+    document_title: str = "To be confirmed"
+    construction_activity: str = "To be confirmed"
+    project_name: str = "To be confirmed"
+    work_steps: list[str] = Field(default_factory=list)
+    rejected_headings_or_controls: list[str] = Field(default_factory=list)
+    extraction_notes: str = ""
+
+
 class InspectionDraft(BaseModel):
     disclaimer: str
     formal_finding_en: str
@@ -56,4 +65,3 @@ class CheckerDraft(BaseModel):
     result: Literal["PASS FOR SO REVIEW", "REVISE REQUIRED", "CRITICAL MISSING ITEM", "LEGAL REFERENCE TO BE VERIFIED"]
     comments: list[str] = Field(default_factory=list)
     suggested_revised_wording: list[str] = Field(default_factory=list)
-

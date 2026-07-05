@@ -8,11 +8,11 @@ import pandas as pd
 import streamlit as st
 
 import services.docx_export as docx_export
-from services.ai_prompts import DISCLAIMER, RA_HIDDEN_PROMPT_CONTRACT, RA_SYSTEM_PROMPT
+from services.ai_prompts import DISCLAIMER, MS_EXTRACTION_SYSTEM_PROMPT, RA_HIDDEN_PROMPT_CONTRACT, RA_SYSTEM_PROMPT
 from services.excel_export import build_ra_excel
 from services.file_extract import extract_text_from_upload, infer_steps_from_ms_text
 from services.nvidia_client import generate_json
-from services.validators import RADraft
+from services.validators import MethodStatementExtraction, RADraft
 
 st.set_page_config(page_title="RA Generator", layout="wide", initial_sidebar_state="collapsed")
 
@@ -270,6 +270,69 @@ def split_steps(text: str) -> list[str]:
         clean = line.strip(" \t-*0123456789.)")
         if clean:
             steps.append(clean)
+    return steps
+
+
+def _compact_text(value: str) -> str:
+    return "".join(str(value or "").split()).lower()
+
+
+def clean_extracted_steps(raw_steps: list[str], titles: list[str] | None = None, max_steps: int = 14) -> list[str]:
+    title_keys = {_compact_text(title) for title in (titles or []) if title}
+    always_blocked_terms = [
+        "施工方案",
+        "methodstatement",
+        "安全程序及措施",
+        "拆棚之程序",
+    ]
+    blocked_terms = [
+        "安全準備",
+        "準備工作",
+        "適用法例",
+        "工地要求",
+        "拆棚後安排",
+        "個人防護",
+        "ppe",
+        "訓練",
+        "permit",
+        "許可證",
+        "必須",
+        "嚴禁",
+        "如遇天氣",
+        "惡劣天氣",
+    ]
+    action_terms = [
+        "拆",
+        "安裝",
+        "吊",
+        "搬",
+        "運",
+        "傳",
+        "清",
+        "set up",
+        "install",
+        "remove",
+        "dismantle",
+        "transport",
+        "carry out",
+        "inspect",
+    ]
+    steps: list[str] = []
+    for raw in raw_steps:
+        clean = str(raw or "").strip(" \t-*0123456789.)、")
+        compact = _compact_text(clean)
+        if not clean or len(compact) < 4:
+            continue
+        if compact in title_keys or any(compact == title or compact in title for title in title_keys):
+            continue
+        if any(term in compact for term in always_blocked_terms):
+            continue
+        if any(term in compact for term in blocked_terms) and not any(term in clean.lower() for term in action_terms):
+            continue
+        if clean not in steps:
+            steps.append(clean[:260])
+        if len(steps) >= max_steps:
+            break
     return steps
 
 
@@ -698,11 +761,45 @@ if submitted:
         st.error(UI["missing"] + ", ".join(missing))
     else:
         provided_steps = split_steps(method_steps)
-        ms_steps = infer_steps_from_ms_text(ms_text)
-        activity_value = activity.strip() or (ms_steps[0] if ms_steps else f"Works described in uploaded Method Statement: {ms_file_name}")
+        ai_ms_extraction: MethodStatementExtraction | None = None
+        ms_ai_error = ""
+        if ms_text.strip() and not provided_steps:
+            with st.spinner("AI is reading the Method Statement and separating title, headings and real work steps... / AI 正在分析施工方法書，分開標題、章節及真正工序..."):
+                extraction_payload = {
+                    "file_name": ms_file_name,
+                    "report_language": output_language,
+                    "user_activity": activity.strip(),
+                    "user_project_name": location.strip(),
+                    "method_statement_text": ms_text[:12000],
+                    "instructions": [
+                        "Extract title separately from work steps.",
+                        "Work steps must be sequential physical work activities only.",
+                        "Reject headings, safety rules, PPE/training requirements, permit requirements, weather stop-work rules and control measures.",
+                        "If the document contains a section named 拆棚工序 / construction sequence / work procedure, use that section as priority.",
+                    ],
+                }
+                extracted, _flags, ms_ai_error = generate_json(MS_EXTRACTION_SYSTEM_PROMPT, extraction_payload, MethodStatementExtraction)
+                ai_ms_extraction = extracted if isinstance(extracted, MethodStatementExtraction) else None
+
+        title_candidates = [
+            ms_file_name.rsplit(".", 1)[0] if ms_file_name else "",
+            project.strip(),
+            activity.strip(),
+        ]
+        if ai_ms_extraction:
+            title_candidates.extend([ai_ms_extraction.document_title, ai_ms_extraction.construction_activity, ai_ms_extraction.project_name])
+        ai_steps = clean_extracted_steps(ai_ms_extraction.work_steps if ai_ms_extraction else [], title_candidates)
+        local_steps = clean_extracted_steps(infer_steps_from_ms_text(ms_text), title_candidates)
+        ms_steps = ai_steps or local_steps
+        ai_activity = "" if not ai_ms_extraction else ai_ms_extraction.construction_activity
+        ai_project_name = "" if not ai_ms_extraction else ai_ms_extraction.project_name
+        ai_document_title = "" if not ai_ms_extraction else ai_ms_extraction.document_title
+        activity_value = activity.strip() or (ai_activity if ai_activity and ai_activity != "To be confirmed" else f"Works described in uploaded Method Statement: {ms_file_name}")
         location_value = location.strip() or "To be confirmed from Method Statement / project information"
         equipment_value = equipment.strip() or "To be confirmed from Method Statement / uploaded document"
-        project_value = project.strip() or (ms_file_name.rsplit(".", 1)[0] if ms_file_name else "Risk Assessment Report")
+        if ai_project_name and ai_project_name != "To be confirmed" and not location.strip():
+            location_value = ai_project_name
+        project_value = project.strip() or (ai_document_title if ai_document_title and ai_document_title != "To be confirmed" else (ms_file_name.rsplit(".", 1)[0] if ms_file_name else "Risk Assessment Report"))
         steps = provided_steps or ms_steps or infer_steps(activity_value, confined_space)
         library_matches = matched_library_records(activity_value, equipment_value, steps, confined_space)
         st.session_state["ra_input"] = {
@@ -721,7 +818,9 @@ if submitted:
             "method_statement_file": ms_file_name,
             "method_statement_text": ms_text,
             "method_statement_error": ms_error,
-            "steps_source": "User provided" if provided_steps else ("Uploaded Method Statement inferred" if ms_steps else "AI / industry standard inferred"),
+            "method_statement_ai_error": ms_ai_error,
+            "method_statement_ai_extraction": ai_ms_extraction.model_dump() if ai_ms_extraction else {},
+            "steps_source": "User provided" if provided_steps else ("NVIDIA AI Method Statement extraction" if ai_steps else ("Uploaded Method Statement inferred" if ms_steps else "AI / industry standard inferred")),
             "confirmed_steps": steps,
             "matched_library_records": library_matches,
             "keyword_map": KEYWORD_MAP,
@@ -755,6 +854,20 @@ if st.session_state.get("ra_stage") in {"confirm", "generated"}:
         col1.write(f"**MS Extracted Text:** {len(data.get('method_statement_text', ''))} characters")
     if data.get("method_statement_error"):
         st.warning(f"Method Statement upload warning: {data['method_statement_error']}")
+    if data.get("method_statement_ai_error"):
+        st.info(f"AI Method Statement extraction fallback used: {data['method_statement_ai_error']}")
+    if data.get("method_statement_ai_extraction"):
+        ai_info = data["method_statement_ai_extraction"]
+        with st.expander("AI Method Statement structure / AI 施工方法書結構分析", expanded=False):
+            st.write(f"**Document title / 文件標題:** {ai_info.get('document_title', '-')}")
+            st.write(f"**Construction activity / 施工活動:** {ai_info.get('construction_activity', '-')}")
+            st.write(f"**Project name / 工程名稱:** {ai_info.get('project_name', '-')}")
+            rejected = ai_info.get("rejected_headings_or_controls") or []
+            if rejected:
+                st.write("**Rejected headings / controls / 已排除標題或控制措施:**")
+                st.write("\n".join(f"- {item}" for item in rejected[:20]))
+            if ai_info.get("extraction_notes"):
+                st.caption(ai_info["extraction_notes"])
     if data.get("method_statement_text"):
         with st.expander("Method Statement extracted text", expanded=False):
             st.text_area("Extracted text preview", data["method_statement_text"][:6000], height=260, disabled=True)
