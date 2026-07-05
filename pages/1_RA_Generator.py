@@ -238,6 +238,32 @@ def render_top_toolbar() -> str:
             border: 1px solid #0f766e;
             font-weight: 700;
         }}
+        div[data-testid="stFileUploader"] button {{
+            background: #2563eb !important;
+            color: #ffffff !important;
+            border: 1px solid #1d4ed8 !important;
+            border-radius: 8px !important;
+            font-weight: 800 !important;
+        }}
+        div[data-testid="stFileUploader"] button:hover {{
+            background: #1d4ed8 !important;
+            border-color: #1e40af !important;
+            color: #ffffff !important;
+        }}
+        .field-highlight {{
+            margin: 0.15rem 0 0.35rem 0;
+            padding: 0.42rem 0.62rem;
+            border-left: 4px solid #2563eb;
+            border-radius: 6px;
+            background: #eff6ff;
+            color: #1e3a8a;
+            font-weight: 800;
+        }}
+        .field-highlight-green {{
+            border-left-color: #0f766e;
+            background: #ecfdf5;
+            color: #14532d;
+        }}
         </style>
         """,
         unsafe_allow_html=True,
@@ -997,6 +1023,7 @@ with st.form("basic_info"):
     selected_matrix = matrices[selected_matrix_name]
     has_ms = col1.radio(UI["has_ms"], ["Yes", "No / Not sure"], horizontal=True)
     uploaded_ms = col1.file_uploader(UI["upload_ms"], type=["docx", "pdf", "txt"], help=UI["upload_help"])
+    col2.markdown('<div class="field-highlight field-highlight-green">2. Construction activity / 施工活動</div>', unsafe_allow_html=True)
     activity = col2.text_input(UI["activity"], placeholder=UI["activity_ph"])
     location = col1.text_input(UI["location"], placeholder=UI["location_ph"])
     equipment = col2.text_area(UI["equipment"], placeholder=UI["equipment_ph"])
@@ -1006,6 +1033,7 @@ with st.form("basic_info"):
     col2.caption(f"{UI['standard']}: {matrix_version_default}")
     project = col1.text_input(UI["project"], value="Risk Assessment Report")
     version = col2.text_input("Version / 版本", value="Rev. 0")
+    col2.markdown('<div class="field-highlight">Report output language / 報告輸出語言</div>', unsafe_allow_html=True)
     output_language = col2.selectbox(
         UI["output_language"],
         REPORT_LANGUAGE_OPTIONS,
@@ -1116,10 +1144,12 @@ if st.session_state.get("ra_stage") in {"confirm", "generated"}:
     st.info(UI["step2_help"])
     col1, col2 = st.columns(2)
     edited_project = col1.text_input("Report title / 報告標題", value=data.get("project", ""), key="confirm_project")
+    col2.markdown('<div class="field-highlight field-highlight-green">Construction activity / 施工活動</div>', unsafe_allow_html=True)
     edited_activity = col2.text_input("Construction Activity / 施工活動", value=data.get("activity", ""), key="confirm_activity")
     edited_location = col1.text_input("Project name / 工程名稱", value=data.get("location", ""), key="confirm_location")
     edited_equipment = col2.text_area("Equipment & Tools / 設備及工具", value=data.get("equipment", ""), height=90, key="confirm_equipment")
     col2.caption(f"Matrix version / 矩陣版本: {data.get('standard', '-')}")
+    col1.markdown('<div class="field-highlight">Report output language / 報告輸出語言</div>', unsafe_allow_html=True)
     edited_output_language = col1.selectbox(
         UI["output_language"],
         REPORT_LANGUAGE_OPTIONS,
@@ -1248,6 +1278,7 @@ if st.session_state.get("ra_stage") == "generated" and "ra_draft" in st.session_
         with st.expander("Checker comments / 檢查意見", expanded=True):
             for comment in checker.get("comments", []):
                 st.write(f"- {comment}")
+    st.markdown('<div class="field-highlight">Report output language / 報告輸出語言</div>', unsafe_allow_html=True)
     download_language = st.selectbox(
         UI["output_language"],
         REPORT_LANGUAGE_OPTIONS,

@@ -399,7 +399,7 @@ def _set_cell_borders(cell, color: str = "000000", size: str = "6") -> None:
         element.set(qn("w:color"), color)
 
 
-def _set_cell_margins(cell, margin: int = 70) -> None:
+def _set_cell_margins(cell, margin: int = 35) -> None:
     tc_pr = cell._tc.get_or_add_tcPr()
     tc_mar = tc_pr.find(qn("w:tcMar"))
     if tc_mar is None:
@@ -437,17 +437,61 @@ def _zh_term_cleanup(text: Any) -> str:
         "Carry out work at height": "\u9032\u884c\u9ad8\u8655\u5de5\u4f5c",
         "Remove tools/materials and close out inspection": "\u79fb\u8d70\u5de5\u5177 / \u7269\u6599\u53ca\u5b8c\u6210\u6536\u5de5\u6aa2\u67e5",
         "Fall from height": "\u9ad8\u8655\u589c\u4e0b",
+        "Fall of Person from height": "\u4eba\u54e1\u9ad8\u8655\u589c\u4e0b",
         "Falling objects": "\u9ad8\u7a7a\u589c\u7269",
         "Platform collapse": "\u5e73\u53f0\u5012\u584c",
         "Unsafe access": "\u901a\u9053\u4e0d\u5b89\u5168",
         "Weather effect": "\u5929\u6c23\u5f71\u97ff",
+        "Adverse weather": "\u60e1\u52a3\u5929\u6c23",
+        "Typhoon or Heavy Rainstorm": "\u98b1\u98a8\u6216\u66b4\u96e8",
         "Serious injury": "\u56b4\u91cd\u53d7\u50b7",
         "Fatality": "\u6b7b\u4ea1",
+        "Fatality / Serious Injury": "\u6b7b\u4ea1 / \u56b4\u91cd\u53d7\u50b7",
         "Injury to persons below": "\u4e0b\u65b9\u4eba\u58eb\u53d7\u50b7",
         "Property damage": "\u8ca1\u7269\u640d\u58de",
         "Workers, supervisors, subcontractors and persons nearby": "\u5de5\u4eba\u3001\u76e3\u7763\u4eba\u54e1\u3001\u5206\u5224\u5546\u53ca\u9644\u8fd1\u4eba\u58eb",
+        "Workers, supervisors, subcontractors and persons nearby": "\u5de5\u4eba\u3001\u76e3\u7763\u4eba\u54e1\u3001\u5206\u5224\u5546\u53ca\u9644\u8fd1\u4eba\u58eb",
+        "Workers, supervisors, subcontractors and persons nearby": "\u5de5\u4eba\u3001\u76e3\u7763\u4eba\u54e1\u3001\u5206\u5224\u5546\u53ca\u9644\u8fd1\u4eba\u58eb",
+        "Workers, supervisors, subcontractors and persons nearby": "\u5de5\u4eba\u3001\u76e3\u7763\u4eba\u54e1\u3001\u5206\u5224\u5546\u53ca\u9644\u8fd1\u4eba\u58eb",
+        "Workers and persons nearby": "\u5de5\u4eba\u53ca\u9644\u8fd1\u4eba\u58eb",
+        "Workers and public": "\u5de5\u4eba\u53ca\u516c\u773e",
+        "People at area": "\u5de5\u4f5c\u5340\u5167\u4eba\u58eb",
+        "People at the area": "\u5de5\u4f5c\u5340\u5167\u4eba\u58eb",
+        "Members of public": "\u516c\u773e",
+        "persons nearby": "\u9644\u8fd1\u4eba\u58eb",
+        "subcontractors": "\u5206\u5224\u5546",
+        "supervisors": "\u76e3\u7763\u4eba\u54e1",
+        "and persons nearby": "\u53ca\u9644\u8fd1\u4eba\u58eb",
+        "Unsafe condition, unsafe act or failure mode associated with the confirmed work step": "\u8207\u5df2\u78ba\u8a8d\u5de5\u5e8f\u76f8\u95dc\u7684\u4e0d\u5b89\u5168\u72c0\u6cc1\u3001\u4e0d\u5b89\u5168\u884c\u70ba\u6216\u5931\u6548\u6a21\u5f0f",
+        "Unsafe condition, unsafe act or failure mode": "\u4e0d\u5b89\u5168\u72c0\u6cc1\u3001\u4e0d\u5b89\u5168\u884c\u70ba\u6216\u5931\u6548\u6a21\u5f0f",
+        "Lack of safety awareness": "\u5b89\u5168\u610f\u8b58\u4e0d\u8db3",
+        "Working area not fenced off": "\u5de5\u4f5c\u5340\u672a\u9069\u7576\u570d\u5c01",
+        "Workers not trained for the task": "\u5de5\u4eba\u672a\u63a5\u53d7\u76f8\u95dc\u5de5\u5e8f\u8a13\u7df4",
+        "No proper access": "\u672a\u63d0\u4f9b\u9069\u7576\u901a\u9053",
+        "No fixed anchoring point provided": "\u672a\u63d0\u4f9b\u56fa\u5b9a\u9328\u56fa\u9ede",
+        "No safety harness worn": "\u672a\u4f69\u6234\u5b89\u5168\u5e36",
         "Confirm with approved Method Statement and site-specific conditions": "\u6839\u64da\u5df2\u6279\u51c6\u65bd\u5de5\u65b9\u6cd5\u66f8\u53ca\u5de5\u5730\u5be6\u969b\u60c5\u6cc1\u78ba\u8a8d",
         "Confirm method statement, competent person requirement, permit-to-work, inspection points and emergency arrangement before work starts": "\u958b\u5de5\u524d\u78ba\u8a8d\u65bd\u5de5\u65b9\u6cd5\u66f8\u3001\u5408\u8cc7\u683c\u4eba\u58eb\u8981\u6c42\u3001\u5de5\u4f5c\u8a31\u53ef\u8b49\u3001\u6aa2\u67e5\u9ede\u53ca\u7dca\u6025\u5b89\u6392",
+        "Provide safe working platform": "\u63d0\u4f9b\u5b89\u5168\u5de5\u4f5c\u5e73\u53f0",
+        "Guardrails and toe boards where applicable": "\u6309\u9700\u8981\u8a2d\u7f6e\u8b77\u6b04\u53ca\u8e22\u8173\u677f",
+        "Fall arrest system and independent lifeline where required": "\u6309\u9700\u8981\u4f7f\u7528\u9632\u589c\u7cfb\u7d71\u53ca\u7368\u7acb\u6551\u751f\u7e69",
+        "Inspect access equipment before use": "\u4f7f\u7528\u524d\u6aa2\u67e5\u901a\u9053\u53ca\u5de5\u4f5c\u8a2d\u5099",
+        "Set exclusion zone below work area": "\u5728\u5de5\u4f5c\u5340\u4e0b\u65b9\u8a2d\u7f6e\u7981\u5340",
+        "Secure tools and materials against falling": "\u56fa\u5b9a\u5de5\u5177\u53ca\u7269\u6599\u9632\u6b62\u589c\u4e0b",
+        "Ensure all tools and materials are secured against falling": "\u78ba\u4fdd\u6240\u6709\u5de5\u5177\u53ca\u7269\u6599\u5df2\u56fa\u5b9a\u9632\u6b62\u589c\u4e0b",
+        "Fence off the working area": "\u570d\u5c01\u5de5\u4f5c\u5340",
+        "Provide appropriate working platform": "\u63d0\u4f9b\u9069\u7576\u5de5\u4f5c\u5e73\u53f0",
+        "Workers shall wear full body harness": "\u5de5\u4eba\u9808\u4f69\u6234\u5168\u8eab\u5f0f\u5b89\u5168\u5e36",
+        "Competent person has to inspect working platform": "\u5408\u8cc7\u683c\u4eba\u58eb\u9808\u6aa2\u67e5\u5de5\u4f5c\u5e73\u53f0",
+        "Confirm rescue arrangement for fall arrest": "\u78ba\u8a8d\u9632\u589c\u6551\u63f4\u5b89\u6392",
+        "Provide competent supervision": "\u63d0\u4f9b\u5408\u8cc7\u683c\u76e3\u7763",
+        "Working at height permit where required by site system": "\u6309\u5de5\u5730\u5236\u5ea6\u9700\u8981\u8fa6\u7406\u9ad8\u8655\u5de5\u4f5c\u8a31\u53ef",
+        "Competent person for scaffold / platform inspection where applicable": "\u6309\u9700\u8981\u7531\u5408\u8cc7\u683c\u4eba\u58eb\u6aa2\u67e5\u68da\u67b6 / \u5de5\u4f5c\u5e73\u53f0",
+        "Induction Training / Toolbox Talk / FCB / Zero Harm Lesson": "\u5165\u8077\u8a13\u7df4 / \u5de5\u5177\u7bb1\u6703\u8b70 / \u73fe\u5834\u63a7\u5236\u7c21\u4ecb / \u96f6\u50b7\u5bb3\u8ab2\u7a0b",
+        "Field control briefing": "\u73fe\u5834\u63a7\u5236\u7c21\u4ecb",
+        "Safety gloves": "\u5b89\u5168\u624b\u5957",
+        "Safety helmet": "\u5b89\u5168\u5e3d",
+        "safety helmet": "\u5b89\u5168\u5e3d",
         "Pre-work briefing": "\u958b\u5de5\u524d\u7c21\u4ecb",
         "Supervisor control": "\u76e3\u7763\u4eba\u54e1\u63a7\u5236",
         "Suitable PPE": "\u5408\u9069\u500b\u4eba\u9632\u8b77\u88dd\u5099",
@@ -471,9 +515,24 @@ def _zh_term_cleanup(text: Any) -> str:
     return value
 
 
+def _en_term_cleanup(text: Any) -> str:
+    value = str(text or "")
+    if re.search(r"[\u4e00-\u9fff]", value):
+        scaffold_tokens = ["拆棚", "棚架", "尼龍網", "鋅鐵", "帆布", "橫杆", "竹杆", "竹枝"]
+        if any(token in value for token in scaffold_tokens):
+            return "Dismantle scaffold bay: remove nylon net, metal sheets or canvas first; then remove ledgers and supporting bamboo members."
+        if "惡劣天氣" in value or "暴雨" in value or "颱風" in value:
+            return "Adverse weather control for outdoor works."
+        if "公眾" in value:
+            return "Public interface control for persons nearby."
+    return value
+
+
 def _display_text(text: Any, language: str) -> str:
     if language in {"Traditional Chinese", "Simplified Chinese"}:
         return _zh_term_cleanup(text)
+    if language == "English":
+        return _en_term_cleanup(text)
     return str(text or "-")
 
 
@@ -851,12 +910,14 @@ def build_ra_docx(report: dict[str, Any], ra_rows: list[dict[str, Any]], matrix:
         _set_cell_text(cells[14], actual_residual, size=10.0, align=WD_ALIGN_PARAGRAPH.CENTER)
         initial_score = _extract_score(row.get("Initial Risk"))
         if initial_score is not None:
+            _set_cell_shading(cells[7], _risk_fill(initial_score))
+            _set_cell_shading(cells[8], _risk_fill(initial_score))
             _set_cell_shading(cells[9], _risk_fill(initial_score))
         if residual_score is not None:
             _set_cell_shading(cells[13], _risk_fill(residual_score))
             _set_cell_shading(cells[14], _risk_fill(residual_score))
     _style_table(table, header_fill="FFF44F")
-    _set_table_widths(table, [0.35, 1.15, 1.15, 0.95, 1.35, 0.95, 1.75, 0.3, 0.3, 0.75, 1.45, 1.2, 1.05, 0.95, 0.9])
+    _set_table_widths(table, [0.32, 1.05, 1.05, 0.95, 1.2, 0.9, 1.55, 0.32, 0.32, 0.72, 1.3, 1.15, 0.95, 0.85, 0.82])
 
     doc.add_paragraph(static.get("minimum_acceptable_risk", "Minimum acceptable residual risk: MR or below unless specifically accepted."))
     doc.add_paragraph(static.get("pi_note", "P: probability or likelihood rating; IC: Impact Consequence rating."))
