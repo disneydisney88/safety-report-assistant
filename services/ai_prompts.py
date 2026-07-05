@@ -19,7 +19,8 @@ Risk table rules:
 - Output valid JSON matching the RADraft schema only.
 - The items array must not be empty.
 - Include at least one risk row for every confirmed work step.
-- A work step may have multiple hazards where appropriate.
+- A work step may have multiple hazards where appropriate. If one work step has multiple distinct hazards, create separate items/rows for each hazard instead of combining all hazards in one cell.
+- The final number of ordinary risk rows must be at least the number of confirmed work steps. If outdoor/weather or public interface applies, add separate extra rows near the end.
 - Do not use the Method Statement title, section heading, safety rule, training requirement or control measure as a work step.
 - Do not repeat the same generic hazard in every row. If adverse weather, typhoon, heavy rain, strong wind or public interface is relevant, create one separate dedicated risk row near the end instead of adding it to every work step.
 - Cause of hazard must be a real cause such as unsafe access, unprotected edge, unstable working platform, falling material, manual handling, insufficient exclusion zone, lack of supervision, poor housekeeping, plant movement, weather exposure or public interface. Do not use "confirm with approved Method Statement" as the cause.

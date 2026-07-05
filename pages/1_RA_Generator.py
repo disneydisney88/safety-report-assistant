@@ -1,6 +1,7 @@
 ﻿from __future__ import annotations
 
 import json
+import re
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -500,6 +501,11 @@ def ra_rows(draft: RADraft) -> list[dict[str, str]]:
     ]
 
 
+def split_points_for_rows(value: str) -> list[str]:
+    parts = [part.strip(" \t-•") for part in re.split(r"\n|;|；", str(value or ""))]
+    return [part for part in parts if part and part != "-"]
+
+
 def _rating_from_matrix(matrix: dict, likelihood: int, severity: int) -> str:
     score = likelihood * severity
     level = "MR"
@@ -515,6 +521,7 @@ def ensure_required_ra_rows(data: dict, rows: list[dict[str, str]]) -> list[dict
         rows = ra_rows(fallback_ra(data))
 
     language = data.get("report_language", "English")
+    chinese = language in {"Traditional Chinese", "Simplified Chinese"}
     joined = " ".join(
         [
             data.get("activity", ""),
@@ -529,6 +536,60 @@ def ensure_required_ra_rows(data: dict, rows: list[dict[str, str]]) -> list[dict
     has_weather = any("weather" in str(row.get("Work Step", "")).lower() or "天氣" in str(row.get("Work Step", "")) or "惡劣" in str(row.get("Work Step", "")) for row in rows)
     has_public = any("control interface with public" in str(row.get("Work Step", "")).lower() or "公眾" in str(row.get("Work Step", "")) or "行人" in str(row.get("Work Step", "")) for row in rows)
     matrix = data.get("risk_matrix", {})
+
+    exploded_rows: list[dict[str, str]] = []
+    for row in rows:
+        hazards = split_points_for_rows(row.get("Hazard", ""))
+        consequences = split_points_for_rows(row.get("Possible Consequence", ""))
+        if len(hazards) > 1 and not any(token in str(row.get("Work Step", "")) for token in ["惡劣天氣", "公眾", "weather", "public"]):
+            for idx, hazard in enumerate(hazards):
+                new_row = dict(row)
+                new_row["Hazard"] = hazard
+                if len(consequences) == len(hazards):
+                    new_row["Possible Consequence"] = consequences[idx]
+                exploded_rows.append(new_row)
+        else:
+            exploded_rows.append(row)
+    rows = exploded_rows
+
+    def generic_step_row(step: str) -> dict[str, str]:
+        if chinese:
+            return {
+                "Work Step": step,
+                "Hazard": "與工序相關的高處墮下、物料墮下、通道或作業面不安全",
+                "Possible Consequence": "嚴重受傷或死亡；下方人士受傷；財物損壞",
+                "Persons at Risk": "工人、監督人員、分判商及附近人士",
+                "Initial Risk": _rating_from_matrix(matrix, 2, 5),
+                "Existing Controls": "按已批准施工方法書施工；開工前簡介；設置工作平台及通道；設置禁區及警告標誌；使用合適個人防護裝備",
+                "Additional Controls Required": "由合資格人士檢查相關工作平台、棚架或設備；加強現場監督；按工序分段施工；保持通道及工作面整潔",
+                "Residual Risk": _rating_from_matrix(matrix, 1, 5),
+                "Legal / CoP Reference": "香港職安健法例、勞工處指引及相關工作守則",
+                "Permit / Competent Person": "按工程要求進行高處工作訓練、工具箱講座及合資格人士檢查",
+                "Inspection / Monitoring": "開工前檢查；施工中監察；收工檢查及記錄",
+                "Responsible Person": "工地監督 / 安全主任",
+                "Remarks": "須按實際工地情況確認危害成因及控制措施",
+            }
+        return {
+            "Work Step": step,
+            "Hazard": "Task-specific fall, falling object, unsafe access or unsafe working platform hazard",
+            "Possible Consequence": "Serious injury or fatality; injury to persons below; property damage",
+            "Persons at Risk": "Workers, supervisors, subcontractors and persons nearby",
+            "Initial Risk": _rating_from_matrix(matrix, 2, 5),
+            "Existing Controls": "Follow approved Method Statement; pre-work briefing; provide safe working platform and access; establish exclusion zone and warning signs; use suitable PPE",
+            "Additional Controls Required": "Competent person inspection of relevant platform, scaffold or equipment; enhanced supervision; stage-by-stage work sequence; maintain good housekeeping",
+            "Residual Risk": _rating_from_matrix(matrix, 1, 5),
+            "Legal / CoP Reference": "Hong Kong OSH legislation, Labour Department guidance and relevant Codes of Practice",
+            "Permit / Competent Person": "Working-at-height training, toolbox talk and competent person inspection as required by project",
+            "Inspection / Monitoring": "Pre-work inspection; active monitoring; close-out inspection and record",
+            "Responsible Person": "Site Supervisor / Safety Officer",
+            "Remarks": "Cause and controls shall be verified against actual site condition",
+        }
+
+    existing_steps = {str(row.get("Work Step", "")).strip() for row in rows}
+    for step in data.get("confirmed_steps", []):
+        if step and step.strip() not in existing_steps:
+            rows.append(generic_step_row(step.strip()))
+            existing_steps.add(step.strip())
 
     def row_en(kind: str) -> dict[str, str]:
         if kind == "weather":
@@ -596,7 +657,6 @@ def ensure_required_ra_rows(data: dict, rows: list[dict[str, str]]) -> list[dict
             "Remarks": "最低可接受剩餘風險：MR 或以下；如未能維持公眾保護須停工",
         }
 
-    chinese = language in {"Traditional Chinese", "Simplified Chinese"}
     if any(keyword in joined for keyword in outdoor_keywords) and not has_weather:
         rows.append(row_zh("weather") if chinese else row_en("weather"))
     if any(keyword in joined for keyword in public_keywords) and not has_public:
@@ -655,6 +715,9 @@ def build_hidden_report_prompt(data: dict) -> str:
             "- Use only real sequential work activities as work steps.",
             "- Do not treat the Method Statement title, section heading, training requirement, PPE requirement or control measure as a work step.",
             "- Hazard cause must state the direct unsafe condition or exposure; never use 'confirm with approved Method Statement' as the cause.",
+            "- Create at least one risk item for every confirmed work step.",
+            "- If a work step has multiple distinct hazards, split them into separate risk items/rows instead of placing several hazards in one hazard cell.",
+            "- Add adverse weather and public interface as separate final rows when applicable.",
             "",
             "Risk band rules from selected matrix:",
             "\n".join(band_lines) or "Use selected matrix in payload.",

@@ -312,7 +312,7 @@ SAFE_STATIC_TEXT = {
         ],
         "purpose_body": "\u672c\u98a8\u96aa\u8a55\u4f30\u6db5\u84cb\u4e0a\u8ff0\u5de5\u4f5c\u6d3b\u52d5\uff0c\u4e26\u9808\u8207\u5df2\u6279\u51c6\u7684\u65bd\u5de5\u65b9\u6cd5\u66f8\u3001\u5716\u5247\u3001\u5de5\u4f5c\u8a31\u53ef\u8b49\u53ca\u5de5\u5730\u6307\u793a\u4e00\u4f75\u4f7f\u7528\u3002\u6240\u6709\u63a7\u5236\u63aa\u65bd\u9808\u7531\u5b89\u5168\u4e3b\u4efb / \u7372\u6388\u6b0a\u4eba\u58eb\u5be9\u95b1\u5f8c\u65b9\u53ef\u4f7f\u7528\u3002",
         "matrix_body": "\u98a8\u96aa\u8a55\u7d1a = \u56b4\u91cd\u7a0b\u5ea6 (S) x \u53ef\u80fd\u6027 (L)\u3002\u5be6\u65bd\u6240\u6709\u5217\u660e\u63a7\u5236\u63aa\u65bd\u5f8c\uff0c\u5269\u9918\u98a8\u96aa\u9808\u7dad\u6301\u5728 ALARP \u6c34\u5e73\u3002",
-        "requirements": ["\u9075\u5b88\u9999\u6e2f\u8077\u696d\u5b89\u5168\u53ca\u5065\u5eb7\u76f8\u95dc\u6cd5\u4f8b\u53ca\u9644\u5c6c\u898f\u4f8b\u3002", "\u9075\u5b88\u52de\u5de5\u8655\u6307\u5f15\u3001\u5de5\u4f5c\u5b88\u5247\u53ca\u5ba2\u6236 / \u5de5\u7a0b\u5b89\u5168\u8981\u6c42\u3002", "\u5982\u9069\u7528\uff0c\u9808\u57f7\u884c\u5de5\u4f5c\u8a31\u53ef\u8b49\u3001\u5408\u8cc7\u683c\u4eba\u58eb\u6aa2\u67e5\u3001\u51fa\u5165\u7ba1\u5236\u53ca\u6551\u63f4\u5b89\u6392\u3002", "\u672c\u8349\u7a3f\u53ea\u986f\u793a\u5d17\u4f4d / \u8077\u8cac\uff0c\u4e0d\u986f\u793a\u500b\u4eba\u59d3\u540d\u3002"],
+        "requirements": ["\u9075\u5b88\u9999\u6e2f\u8077\u696d\u5b89\u5168\u53ca\u5065\u5eb7\u76f8\u95dc\u6cd5\u4f8b\u53ca\u9644\u5c6c\u898f\u4f8b\u3002", "\u9075\u5b88\u52de\u5de5\u8655\u6307\u5f15\u3001\u5de5\u4f5c\u5b88\u5247\u53ca\u5ba2\u6236 / \u5de5\u7a0b\u5b89\u5168\u8981\u6c42\u3002", "\u5982\u9069\u7528\uff0c\u9808\u57f7\u884c\u5de5\u4f5c\u8a31\u53ef\u8b49\u3001\u5408\u8cc7\u683c\u4eba\u58eb\u6aa2\u67e5\u3001\u51fa\u5165\u7ba1\u5236\u53ca\u6551\u63f4\u5b89\u6392\u3002"],
         "ppe": ["\u5b89\u5168\u5e3d\u9023\u5e3d\u5e36", "\u53cd\u5149\u8863 / \u9ad8\u80fd\u898b\u5ea6\u8863\u7269", "\u5b89\u5168\u978b", "\u9069\u5408\u5de5\u5e8f\u7684\u9632\u8b77\u624b\u5957", "\u8b77\u773c\u88dd\u5099", "\u5168\u8eab\u5f0f\u5b89\u5168\u5e36\u53ca\u5408\u9069\u9328\u56fa\u9ede / \u7368\u7acb\u6551\u751f\u7e69"],
         "checklist": ["\u5df2\u5099\u6709\u6279\u51c6\u65bd\u5de5\u65b9\u6cd5\u66f8\u3001\u5716\u5247\u3001\u8a31\u53ef\u8b49\u53ca\u98a8\u96aa\u8a55\u4f30\u3002", "\u5df2\u78ba\u8a8d\u5408\u8cc7\u683c\u4eba\u58eb\u3001\u76e3\u7763\u4eba\u54e1\u53ca\u5de5\u4eba\uff0c\u4e26\u5b8c\u6210\u7c21\u4ecb\u3002", "\u5df2\u8a2d\u7f6e\u570d\u5c01\u3001\u8b66\u544a\u544a\u793a\u53ca\u51fa\u5165\u7ba1\u5236\u3002", "\u958b\u5de5\u524d\u5df2\u6aa2\u67e5\u6a5f\u68b0\u3001\u5de5\u5177\u3001\u901a\u9053\u8a2d\u5099\u53ca PPE\u3002", "\u5df2\u78ba\u8a8d\u7dca\u6025\u3001\u6025\u6551\u3001\u6551\u63f4\u53ca\u901a\u8a0a\u5b89\u6392\u3002", "\u5df2\u6aa2\u67e5\u5929\u6c23 / \u5de5\u5730\u60c5\u6cc1\u3002", "\u5b89\u5168\u4e3b\u4efb / \u7372\u6388\u6b0a\u4eba\u58eb\u5df2\u6aa2\u8a0e\u5269\u9918\u98a8\u96aa\u53ca\u63a7\u5236\u63aa\u65bd\u3002"],
     },
@@ -415,11 +415,13 @@ def _set_cell_margins(cell, margin: int = 70) -> None:
         element.set(qn("w:type"), "dxa")
 
 
-def _set_cell_text(cell, text: Any, bold: bool = False, size: float = 10.0) -> None:
+def _set_cell_text(cell, text: Any, bold: bool = False, size: float = 10.0, align: int | None = None) -> None:
     cell.text = ""
     paragraph = cell.paragraphs[0]
     paragraph.paragraph_format.space_after = Pt(0)
     paragraph.paragraph_format.line_spacing = 1.0
+    if align is not None:
+        paragraph.alignment = align
     run = paragraph.add_run(str(text or "-"))
     run.bold = bold
     run.font.name = "Calibri"
@@ -456,6 +458,13 @@ def _zh_term_cleanup(text: Any) -> str:
         "Site Supervisor / Safety Officer": "\u5de5\u5730\u76e3\u7763 / \u5b89\u5168\u4e3b\u4efb",
         "Induction / task briefing / suitable PPE": "\u5165\u8077\u8a13\u7df4 / \u5de5\u5e8f\u7c21\u4ecb / \u5408\u9069\u500b\u4eba\u9632\u8b77\u88dd\u5099",
         "Workers / others nearby": "\u5de5\u4eba / \u9644\u8fd1\u5176\u4ed6\u4eba\u58eb",
+        "Workers": "\u5de5\u4eba",
+        "Supervisors": "\u76e3\u7763\u4eba\u54e1",
+        "Subcontractors": "\u5206\u5224\u5546",
+        "Site Supervisor / Safety Officer": "\u5de5\u5730\u76e3\u7763 / \u5b89\u5168\u4e3b\u4efb",
+        "To be verified by Safety Officer": "\u7531\u5b89\u5168\u4e3b\u4efb\u6838\u5be6",
+        "Hong Kong OSH legislation": "\u9999\u6e2f\u8077\u5b89\u5065\u6cd5\u4f8b",
+        "Labour Department guidance": "\u52de\u5de5\u8655\u6307\u5f15",
     }
     for source, target in replacements.items():
         value = value.replace(source, target)
@@ -597,19 +606,24 @@ def _set_table_widths(table, widths: list[float]) -> None:
 
 
 def _add_heading(doc: Document, text: str, level: int = 1) -> None:
-    paragraph = doc.add_heading(text, level=level)
-    for run in paragraph.runs:
-        run.font.name = "Calibri"
-        run.font.color.rgb = RGBColor(31, 77, 120) if level > 1 else RGBColor(11, 37, 69)
+    paragraph = doc.add_paragraph()
+    paragraph.paragraph_format.space_before = Pt(9 if level > 1 else 6)
+    paragraph.paragraph_format.space_after = Pt(4)
+    run = paragraph.add_run(text)
+    run.bold = True
+    run.font.name = "Calibri"
+    run.font.size = Pt(15 if level > 1 else 18)
+    run.font.color.rgb = RGBColor(31, 77, 120) if level > 1 else RGBColor(11, 37, 69)
 
 
 def _add_key_value_table(doc: Document, rows: list[tuple[str, Any]]) -> None:
     table = doc.add_table(rows=0, cols=2)
     for label, value in rows:
         cells = table.add_row().cells
-        _set_cell_text(cells[0], label, bold=True, size=9)
-        _set_cell_text(cells[1], value, size=9)
+        _set_cell_text(cells[0], label, bold=True, size=10.5)
+        _set_cell_text(cells[1], value, size=10.5)
     _style_table(table)
+    _set_table_widths(table, [2.2, 8.8])
 
 
 def _risk_score_tables(doc: Document, matrix: dict[str, Any], language: str = "English") -> None:
@@ -631,22 +645,42 @@ def _risk_score_tables(doc: Document, matrix: dict[str, Any], language: str = "E
             matrix_title = "\u5de5\u7a0b\u98a8\u96aa\u77e9\u9663"
             impact_title = "\u5f71\u97ff\u56b4\u91cd\u7a0b\u5ea6"
             probability_title = "\u53ef\u80fd\u6027 / \u767c\u751f\u6a5f\u6703"
-        _set_cell_text(grid.cell(0, 0), matrix_title, bold=True, size=9)
-        _set_cell_text(grid.cell(0, 2), impact_title, bold=True, size=9)
-        _set_table_widths(grid, [0.45, 2.1, 1.0, 1.0, 1.0, 1.0, 1.0])
-        _set_cell_text(grid.cell(1, 0), "P", bold=True, size=8)
-        _set_cell_text(grid.cell(1, 1), probability_title, bold=True, size=8)
+        _set_cell_text(grid.cell(0, 0), matrix_title, bold=True, size=10)
+        _set_cell_text(grid.cell(0, 2), impact_title, bold=True, size=10)
+        _set_table_widths(grid, [0.5, 2.25, 1.1, 1.1, 1.1, 1.1, 1.1])
+        _set_cell_text(grid.cell(1, 0), "P", bold=True, size=9)
+        _set_cell_text(grid.cell(1, 1), probability_title, bold=True, size=9)
+        severity_zh = {
+            "Insignificant": "極輕微",
+            "Minor": "輕微",
+            "Moderate": "中等",
+            "Major": "嚴重",
+            "Catastrophic": "災難性",
+        }
+        likelihood_zh = {
+            "Rare": "罕見",
+            "Unlikely": "不大可能",
+            "Possible": "可能",
+            "Likely": "頗可能",
+            "Almost Certain": "幾乎肯定",
+        }
         for col, sev in enumerate(severity, start=2):
-            _set_cell_text(grid.cell(1, col), str(sev.get("score", "")), bold=True, size=8)
-            _set_cell_text(grid.cell(2, col), str(sev.get("label_en", "")), bold=True, size=7.2)
+            sev_label = str(sev.get("label_en", ""))
+            if language in {"Traditional Chinese", "Simplified Chinese"}:
+                sev_label = severity_zh.get(sev_label, sev_label)
+            _set_cell_text(grid.cell(1, col), str(sev.get("score", "")), bold=True, size=9)
+            _set_cell_text(grid.cell(2, col), sev_label, bold=True, size=8.5)
             _set_cell_shading(grid.cell(1, col), "FFF44F")
             _set_cell_shading(grid.cell(2, col), "FFF44F")
         _set_cell_text(grid.cell(2, 0), "", size=7)
         _set_cell_text(grid.cell(2, 1), "", size=7)
         for row, like in enumerate(reversed(likelihood), start=3):
             like_score = int(like.get("score", 1))
-            _set_cell_text(grid.cell(row, 0), like_score, bold=True, size=8)
-            _set_cell_text(grid.cell(row, 1), f"{like.get('code', '')} - {like.get('label_en', '')}", size=7.2)
+            _set_cell_text(grid.cell(row, 0), like_score, bold=True, size=9)
+            like_label = str(like.get("label_en", ""))
+            if language in {"Traditional Chinese", "Simplified Chinese"}:
+                like_label = likelihood_zh.get(like_label, like_label)
+            _set_cell_text(grid.cell(row, 1), f"{like.get('code', '')} - {like_label}", size=8.5)
             for col, sev in enumerate(severity, start=2):
                 score = like_score * int(sev.get("score", 1))
                 cell = grid.cell(row, col)
@@ -754,8 +788,14 @@ def build_ra_docx(report: dict[str, Any], ra_rows: list[dict[str, Any]], matrix:
     steps = report.get("Confirmed Steps") or []
     if steps:
         _add_heading(doc, lbl["sequence"], level=2)
-        for step in steps:
-            doc.add_paragraph(str(step), style="List Number")
+        for idx, step in enumerate(steps, start=1):
+            paragraph = doc.add_paragraph()
+            paragraph.paragraph_format.left_indent = Inches(0.25)
+            paragraph.paragraph_format.first_line_indent = Inches(-0.18)
+            paragraph.paragraph_format.space_after = Pt(3)
+            run = paragraph.add_run(f"{idx}. {step}")
+            run.font.name = "Calibri"
+            run.font.size = Pt(11)
 
     _add_heading(doc, lbl["requirements"], level=2)
     for item in static["requirements"]:
@@ -780,10 +820,12 @@ def build_ra_docx(report: dict[str, Any], ra_rows: list[dict[str, Any]], matrix:
         lbl["further"],
         lbl["training_ppe"],
         lbl["action_by"],
+        lbl["residual"],
+        lbl["actual"],
     ]
     table = doc.add_table(rows=1, cols=len(headers))
     for idx, header in enumerate(headers):
-        _set_cell_text(table.rows[0].cells[idx], header, bold=True, size=10.5)
+        _set_cell_text(table.rows[0].cells[idx], header, bold=True, size=10.0, align=WD_ALIGN_PARAGRAPH.CENTER)
     for item_no, row in enumerate(ra_rows, start=1):
         cells = table.add_row().cells
         is_weather = _is_weather_row(row)
@@ -791,27 +833,30 @@ def build_ra_docx(report: dict[str, Any], ra_rows: list[dict[str, Any]], matrix:
         residual_score = _extract_score(row.get("Residual Risk"))
         residual_code = _extract_level_code(row.get("Residual Risk"))
         actual_residual = f"{residual_score or '-'} {residual_code}".strip()
-        _set_cell_text(cells[0], item_no, size=10.5)
-        _set_cell_text(cells[1], _clean_for_main_risk_row(row.get("Work Step"), language, is_weather), size=10.5)
-        _set_cell_text(cells[2], _numbered_text(_clean_for_main_risk_row(row.get("Hazard"), language, is_weather)), size=10.5)
-        _set_cell_text(cells[3], _clean_for_main_risk_row(row.get("Persons at Risk"), language, is_weather), size=10.5)
-        _set_cell_text(cells[4], _numbered_text(_clean_for_main_risk_row(row.get("Remarks") or "Cause to be confirmed against Method Statement / site condition", language, is_weather)), size=10.5)
-        _set_cell_text(cells[5], _numbered_text(_clean_for_main_risk_row(row.get("Possible Consequence"), language, is_weather)), size=10.5)
-        _set_cell_text(cells[6], _numbered_text(_clean_for_main_risk_row(row.get("Existing Controls"), language, is_weather)), size=10.5)
-        _set_cell_text(cells[7], p_value, size=10.5)
-        _set_cell_text(cells[8], ic_value, size=10.5)
-        _set_cell_text(cells[9], row.get("Initial Risk"), size=10.5)
+        _set_cell_text(cells[0], item_no, size=10.0, align=WD_ALIGN_PARAGRAPH.CENTER)
+        _set_cell_text(cells[1], _clean_for_main_risk_row(row.get("Work Step"), language, is_weather), size=10.0)
+        _set_cell_text(cells[2], _numbered_text(_clean_for_main_risk_row(row.get("Hazard"), language, is_weather)), size=10.0)
+        _set_cell_text(cells[3], _clean_for_main_risk_row(row.get("Persons at Risk"), language, is_weather), size=10.0)
+        _set_cell_text(cells[4], _numbered_text(_clean_for_main_risk_row(row.get("Remarks") or "Cause to be confirmed against Method Statement / site condition", language, is_weather)), size=10.0)
+        _set_cell_text(cells[5], _numbered_text(_clean_for_main_risk_row(row.get("Possible Consequence"), language, is_weather)), size=10.0)
+        _set_cell_text(cells[6], _numbered_text(_clean_for_main_risk_row(row.get("Existing Controls"), language, is_weather)), size=10.0)
+        _set_cell_text(cells[7], p_value, size=10.0, align=WD_ALIGN_PARAGRAPH.CENTER)
+        _set_cell_text(cells[8], ic_value, size=10.0, align=WD_ALIGN_PARAGRAPH.CENTER)
+        _set_cell_text(cells[9], row.get("Initial Risk"), size=10.0, align=WD_ALIGN_PARAGRAPH.CENTER)
         further = _clean_for_main_risk_row(row.get("Additional Controls Required"), language, is_weather)
-        if row.get("Residual Risk"):
-            further = f"{further}\nResidual / 剩餘: {row.get('Residual Risk')} ({actual_residual})"
-        _set_cell_text(cells[10], _numbered_text(further), size=10.5)
-        _set_cell_text(cells[11], _numbered_text(_clean_for_main_risk_row(row.get("Permit / Competent Person") or "Induction / task briefing / suitable PPE", language, is_weather)), size=10.5)
-        _set_cell_text(cells[12], _clean_for_main_risk_row(row.get("Responsible Person"), language, is_weather), size=10.5)
+        _set_cell_text(cells[10], _numbered_text(further), size=10.0)
+        _set_cell_text(cells[11], _numbered_text(_clean_for_main_risk_row(row.get("Permit / Competent Person") or "Induction / task briefing / suitable PPE", language, is_weather)), size=10.0)
+        _set_cell_text(cells[12], _clean_for_main_risk_row(row.get("Responsible Person"), language, is_weather), size=10.0)
+        _set_cell_text(cells[13], row.get("Residual Risk"), size=10.0, align=WD_ALIGN_PARAGRAPH.CENTER)
+        _set_cell_text(cells[14], actual_residual, size=10.0, align=WD_ALIGN_PARAGRAPH.CENTER)
         initial_score = _extract_score(row.get("Initial Risk"))
         if initial_score is not None:
             _set_cell_shading(cells[9], _risk_fill(initial_score))
+        if residual_score is not None:
+            _set_cell_shading(cells[13], _risk_fill(residual_score))
+            _set_cell_shading(cells[14], _risk_fill(residual_score))
     _style_table(table, header_fill="FFF44F")
-    _set_table_widths(table, [0.35, 1.35, 1.25, 1.0, 1.15, 0.9, 1.55, 0.32, 0.32, 0.82, 1.85, 1.95, 1.55])
+    _set_table_widths(table, [0.35, 1.15, 1.15, 0.95, 1.35, 0.95, 1.75, 0.3, 0.3, 0.75, 1.45, 1.2, 1.05, 0.95, 0.9])
 
     doc.add_paragraph(static.get("minimum_acceptable_risk", "Minimum acceptable residual risk: MR or below unless specifically accepted."))
     doc.add_paragraph(static.get("pi_note", "P: probability or likelihood rating; IC: Impact Consequence rating."))
