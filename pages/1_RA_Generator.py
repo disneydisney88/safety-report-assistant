@@ -493,27 +493,32 @@ def fallback_ra(data: dict) -> RADraft:
 
 
 def ra_rows(draft: RADraft) -> list[dict[str, str]]:
+    def value(item, attr: str, default: str = "") -> str:
+        if isinstance(item, dict):
+            return str(item.get(attr, default) or default)
+        return str(getattr(item, attr, default) or default)
+
     return [
         {
-            "Source Step ID": item.source_step_id,
-            "Source Step Original": item.source_step_text_original,
-            "Source Step Translated": item.source_step_text_translated,
-            "Hazard ID": item.hazard_id,
-            "Hazard Category": item.hazard_category,
-            "Work Step": item.work_step,
-            "Hazard": item.hazard,
-            "Cause of Hazard": item.cause_of_hazard,
-            "Possible Consequence": item.possible_consequence,
-            "Persons at Risk": item.persons_at_risk,
-            "Initial Risk": item.initial_risk_rating,
-            "Existing Controls": item.existing_control_measures,
-            "Additional Controls Required": item.additional_control_measures_required,
-            "Residual Risk": item.residual_risk_rating,
-            "Legal / CoP Reference": item.legal_cop_reference,
-            "Permit / Competent Person": item.permit_certificate_competent_person_required,
-            "Inspection / Monitoring": item.inspection_monitoring_points,
-            "Responsible Person": item.responsible_person,
-            "Remarks": item.remarks_items_to_be_confirmed,
+            "Source Step ID": value(item, "source_step_id"),
+            "Source Step Original": value(item, "source_step_text_original"),
+            "Source Step Translated": value(item, "source_step_text_translated"),
+            "Hazard ID": value(item, "hazard_id"),
+            "Hazard Category": value(item, "hazard_category"),
+            "Work Step": value(item, "work_step", "To be confirmed"),
+            "Hazard": value(item, "hazard", "To be confirmed"),
+            "Cause of Hazard": value(item, "cause_of_hazard", "To be confirmed"),
+            "Possible Consequence": value(item, "possible_consequence", "To be confirmed"),
+            "Persons at Risk": value(item, "persons_at_risk", "Workers / others nearby"),
+            "Initial Risk": value(item, "initial_risk_rating", "To be confirmed"),
+            "Existing Controls": value(item, "existing_control_measures", "To be confirmed"),
+            "Additional Controls Required": value(item, "additional_control_measures_required", "To be confirmed"),
+            "Residual Risk": value(item, "residual_risk_rating", "To be confirmed"),
+            "Legal / CoP Reference": value(item, "legal_cop_reference", "To be verified by Safety Officer"),
+            "Permit / Competent Person": value(item, "permit_certificate_competent_person_required", "To be confirmed"),
+            "Inspection / Monitoring": value(item, "inspection_monitoring_points", "To be confirmed"),
+            "Responsible Person": value(item, "responsible_person", "To be confirmed"),
+            "Remarks": value(item, "remarks_items_to_be_confirmed", "To be confirmed"),
         }
         for item in draft.items
     ]
@@ -1226,6 +1231,7 @@ if st.session_state.get("ra_stage") in {"confirm", "generated"}:
         st.session_state["ra_input"] = data
         st.session_state["ra_draft"] = draft.model_dump()
         st.session_state["ra_stage"] = "generated"
+        flags = [flag for flag in flags if flag != "PERMIT_REDACTED"]
         if flags:
             st.caption("Redaction flags: " + ", ".join(flags))
 
