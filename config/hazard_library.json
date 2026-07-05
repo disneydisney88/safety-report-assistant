@@ -10,7 +10,11 @@
     "competent_person_required": "Competent person inspection for scaffold / platform where applicable",
     "inspection_points": "Platform condition, access, guardrails, housekeeping, weather and supervision",
     "common_mistakes": "Generic training wording without platform-specific inspection and access controls",
-    "legal_reference_tags": ["Factories and Industrial Undertakings Ordinance", "Construction Sites Safety Regulations", "To be verified by Safety Officer"]
+    "legal_reference_tags": [
+      "Factories and Industrial Undertakings Ordinance",
+      "Construction Sites Safety Regulations",
+      "To be verified by Safety Officer"
+    ]
   },
   {
     "hazard_id": "HZ-LIFT-001",
@@ -23,7 +27,413 @@
     "competent_person_required": "Competent lifting supervisor / rigger / operator as applicable",
     "inspection_points": "SWL, certificates, ground condition, load path, exclusion zone and communication",
     "common_mistakes": "Controls do not state lifting plan, certificates or exclusion zone",
-    "legal_reference_tags": ["Lifting Appliances and Lifting Gear Regulations", "To be verified by Safety Officer"]
+    "legal_reference_tags": [
+      "Lifting Appliances and Lifting Gear Regulations",
+      "To be verified by Safety Officer"
+    ]
+  },
+  {
+    "hazard_id": "HK-GEN-001",
+    "activity": "Pre-work preparation, toolbox talk, RA / MS briefing",
+    "category": "Site General",
+    "work_step": "Pre-work preparation, toolbox talk, RA / MS briefing",
+    "hazard": "Workers do not understand method statement, hazards, permit or PPE requirements",
+    "consequence": "Wrong operation; Injury; Incident escalation",
+    "standard_controls": "Conduct pre-work briefing; Confirm MS / RA / PTW requirements; Confirm worker competence; Check PPE, tools and plant certificates; Assign responsible supervisor",
+    "permit_required": "Permit-to-work where required by project system",
+    "competent_person_required": "Site Supervisor; Safety Officer",
+    "inspection_points": "Briefing record; Worker competence; PPE / tool / plant certificate check",
+    "emergency_response": "Stop work; Re-brief; Resume only after supervisor / Safety Officer confirmation",
+    "common_mistakes": "",
+    "legal_reference_tags": [
+      "OSHO",
+      "FIUO",
+      "Safety-Management-CoP"
+    ],
+    "ai_checker_rules": []
+  },
+  {
+    "hazard_id": "HK-GEN-002",
+    "activity": "Work area barricading and access control",
+    "category": "Site General",
+    "work_step": "Work area barricading and access control",
+    "hazard": "Unauthorised entry; Pedestrian entering work zone; Insufficient warning signs",
+    "consequence": "Struck by object; Fall into opening; Injury to public or workers",
+    "standard_controls": "Provide hard barricade; Display warning signs; Control access points; Provide banksman / watchman where required",
+    "permit_required": "To be confirmed by project system",
+    "competent_person_required": "Site Supervisor; Banksman / Watchman",
+    "inspection_points": "Barricade condition; Signage; Access point control; Public interface",
+    "emergency_response": "Clear danger area; Provide first aid; Report incident",
+    "common_mistakes": "",
+    "legal_reference_tags": [
+      "CSSR",
+      "Public-Protection"
+    ],
+    "ai_checker_rules": []
+  },
+  {
+    "hazard_id": "HK-GEN-003",
+    "activity": "Housekeeping and access route maintenance",
+    "category": "Site General",
+    "work_step": "Housekeeping and access route maintenance",
+    "hazard": "Blocked access; Trip hazard; Slippery surface; Protruding nails; Trailing cables",
+    "consequence": "Slip, trip and fall; Puncture wound; Blocked escape route",
+    "standard_controls": "Daily housekeeping; Keep access routes clear; Remove or flatten nail boards; Elevate or protect cables; Clean standing water immediately",
+    "permit_required": "To be confirmed by project system",
+    "competent_person_required": "Site Supervisor",
+    "inspection_points": "Access routes; Waste storage; Cable route; Water accumulation",
+    "emergency_response": "Barricade affected area; First aid; Clean up before restart",
+    "common_mistakes": "",
+    "legal_reference_tags": [
+      "OSHO",
+      "CSSR"
+    ],
+    "ai_checker_rules": []
+  },
+  {
+    "hazard_id": "HK-WAH-001",
+    "activity": "Work near floor edge, roof edge or external facade",
+    "category": "Work at Height",
+    "work_step": "Work near floor edge, roof edge or external facade",
+    "hazard": "Fall from height; Falling tools or materials; Overreaching",
+    "consequence": "Fatality; Serious injury; Injury to persons below",
+    "standard_controls": "Use safe working platform as priority; Provide guardrails and toe boards; Use full body harness and independent lifeline where required; Use tool lanyards; Set exclusion zone below",
+    "permit_required": "Working-at-height permit where required by project system",
+    "competent_person_required": "Competent person for scaffold / platform inspection",
+    "inspection_points": "Platform condition; Edge protection; Lifeline / anchor point; Tool lanyard; Exclusion zone",
+    "emergency_response": "Activate fall rescue; Preserve scene; Notify emergency services and management",
+    "common_mistakes": "No fall rescue arrangement; No falling object control; Generic PPE only",
+    "legal_reference_tags": [
+      "CSSR",
+      "Work-at-Height-Guidance",
+      "Falling-Objects-Control"
+    ],
+    "ai_checker_rules": [
+      "Missing safe platform / guardrail / harness and lifeline / falling object control / rescue arrangement = CRITICAL MISSING ITEM"
+    ]
+  },
+  {
+    "hazard_id": "HK-WAH-002",
+    "activity": "Floor opening or void opening work",
+    "category": "Work at Height",
+    "work_step": "Floor opening or void opening work",
+    "hazard": "Fall into opening; Opening cover displaced; Opening not marked",
+    "consequence": "Fatality; Fracture; Serious injury",
+    "standard_controls": "Provide robust cover or guardrail; Label floor opening clearly; Do not remove cover without authorisation; Inspect covers and barriers regularly",
+    "permit_required": "To be confirmed by project system",
+    "competent_person_required": "Site Supervisor",
+    "inspection_points": "Cover strength; Warning label; Guardrail condition; Lighting",
+    "emergency_response": "Barricade opening; Reinstate cover; First aid",
+    "common_mistakes": "",
+    "legal_reference_tags": [
+      "CSSR"
+    ],
+    "ai_checker_rules": []
+  },
+  {
+    "hazard_id": "HK-WAH-004",
+    "activity": "Suspended working platform / gondola work",
+    "category": "Suspended Working Platform",
+    "work_step": "Suspended working platform / gondola work",
+    "hazard": "Platform tilt; Wire rope failure; Overloading; Adverse weather",
+    "consequence": "Fall from height; Platform instability; Fatality",
+    "standard_controls": "Valid examination and inspection; Operator training; Check SWL; Independent lifeline; Full body harness; Stop work in adverse weather",
+    "permit_required": "Suspended working platform permit where required",
+    "competent_person_required": "Trained SWP operator; Competent person for inspection",
+    "inspection_points": "Wire rope; Safety devices; SWL; Lifeline; Weather condition",
+    "emergency_response": "Stop using SWP; Activate rescue plan; Do not self-evacuate by climbing out",
+    "common_mistakes": "",
+    "legal_reference_tags": [
+      "Suspended-Working-Platform-CoP"
+    ],
+    "ai_checker_rules": []
+  },
+  {
+    "hazard_id": "HK-SCAF-004",
+    "activity": "Scaffold dismantling",
+    "category": "Scaffolding",
+    "work_step": "Scaffold dismantling",
+    "hazard": "Incorrect dismantling sequence; Flying bamboo; Falling objects; Fall from height; Scaffold instability",
+    "consequence": "Fatality; Multiple injuries; Scaffold collapse; Injury to persons below",
+    "standard_controls": "Apply last-fixed-first-removed and top-down sequence; One independent lifeline per worker; Competent person briefing; Form 5 / inspection record; Strictly prohibit flying bamboo; Set exclusion zone below",
+    "permit_required": "Permit-to-work for scaffold dismantling / alteration where required",
+    "competent_person_required": "Competent person; Scaffold supervisor; Safety Officer verification",
+    "inspection_points": "Form 5 / inspection record; Lifeline; Exclusion zone; Dismantling sequence; Wall ties; Weather",
+    "emergency_response": "Stop work and evacuate if scaffold moves abnormally; Barricade dropped-object area; Provide first aid and report",
+    "common_mistakes": "Treating scaffold title as work step; Repeating weather in every row; Missing wall-tie sequence; No no-flying-bamboo rule",
+    "legal_reference_tags": [
+      "Bamboo-Scaffold-CoP",
+      "CSSR"
+    ],
+    "ai_checker_rules": [
+      "If scaffold dismantling is detected, missing Form 5 / competent person / lifeline / exclusion zone / sequence control / no-flying-bamboo = CRITICAL MISSING ITEM"
+    ]
+  },
+  {
+    "hazard_id": "HK-SCAF-005",
+    "activity": "Wall tie relocation / scaffold alteration",
+    "category": "Scaffolding",
+    "work_step": "Wall tie relocation / scaffold alteration",
+    "hazard": "Premature wall tie removal; Insufficient temporary ties; Expansion bolt capacity not confirmed",
+    "consequence": "Scaffold collapse; Multiple fatalities; Serious injury",
+    "standard_controls": "Use approved tie relocation drawing; Install new tie before removing existing tie; Do not remove excessive ties at one time; Check torque / fixing; Competent person full-time supervision",
+    "permit_required": "Permit-to-work for scaffold alteration where required",
+    "competent_person_required": "Competent person; Temporary works engineer where required",
+    "inspection_points": "Tie layout; Temporary bracing; Fixing / torque check; Scaffold movement",
+    "emergency_response": "Stop work; Evacuate scaffold; Engineer review",
+    "common_mistakes": "",
+    "legal_reference_tags": [
+      "Bamboo-Scaffold-CoP"
+    ],
+    "ai_checker_rules": []
+  },
+  {
+    "hazard_id": "HK-SCAF-006",
+    "activity": "Use of scaffold after adverse weather",
+    "category": "Scaffolding",
+    "work_step": "Use of scaffold after adverse weather",
+    "hazard": "Loose scaffold components after strong wind; Slippery platform; Flying loose materials",
+    "consequence": "Fall from height; Falling objects; Scaffold collapse",
+    "standard_controls": "Competent person inspection after adverse weather; Clear loose materials; Control slippery surfaces; Do not use scaffold before inspection",
+    "permit_required": "To be confirmed by project system",
+    "competent_person_required": "Competent person; Site Supervisor",
+    "inspection_points": "Post-weather scaffold inspection; Loose materials; Platform surface; Tie / bracing condition",
+    "emergency_response": "Stop access; Barricade scaffold; Resume only after competent person confirmation",
+    "common_mistakes": "",
+    "legal_reference_tags": [
+      "Scaffold-CoP",
+      "Adverse-Weather"
+    ],
+    "ai_checker_rules": []
+  },
+  {
+    "hazard_id": "HK-LIFT-001",
+    "activity": "Crane lifting of materials",
+    "category": "Lifting Operation",
+    "work_step": "Crane lifting of materials",
+    "hazard": "Falling load; Sling failure; Crane overturning; Load swinging",
+    "consequence": "Fatality; Crushing injury; Plant / property damage",
+    "standard_controls": "Valid certificates; Lifting plan; SWL check; Competent operator / signaller / rigger; Exclusion zone; Tag line where safe",
+    "permit_required": "Lifting permit / checklist where required",
+    "competent_person_required": "Crane operator; Signaller; Rigger; Lifting supervisor",
+    "inspection_points": "Certificates; SWL; Ground condition; Load path; Exclusion zone; Communication",
+    "emergency_response": "Stop lifting; Evacuate lifting radius; Inspect gear before restart",
+    "common_mistakes": "",
+    "legal_reference_tags": [
+      "LALG-Reg",
+      "Mobile-Crane-CoP"
+    ],
+    "ai_checker_rules": []
+  },
+  {
+    "hazard_id": "HK-PLANT-001",
+    "activity": "Excavator operation",
+    "category": "Plant / Vehicle Movement",
+    "work_step": "Excavator operation",
+    "hazard": "Blind spot collision; Overturning; Collision with structure; Underground utility damage",
+    "consequence": "Fatality; Crushing injury; Electric shock; Explosion; Collapse",
+    "standard_controls": "Qualified operator; Banksman; Plant-person segregation; Reverse alarm; Utility drawing review; Daily plant check",
+    "permit_required": "Plant operation permit where required",
+    "competent_person_required": "Qualified operator; Banksman",
+    "inspection_points": "Operator authorisation; Daily checklist; Segregation; Warning devices; Ground condition; Utility drawings",
+    "emergency_response": "Stop plant; Secure area; First aid; Notify utility company / emergency services where required",
+    "common_mistakes": "",
+    "legal_reference_tags": [
+      "Excavator-CoP",
+      "Loadshifting-Machinery"
+    ],
+    "ai_checker_rules": []
+  },
+  {
+    "hazard_id": "HK-EXC-001",
+    "activity": "Excavation of trench or pit",
+    "category": "Excavation / Utilities",
+    "work_step": "Excavation of trench or pit",
+    "hazard": "Trench collapse; Fall into excavation; Oxygen deficiency; Water ingress",
+    "consequence": "Burial; Fatality; Drowning; Serious injury",
+    "standard_controls": "Provide shoring / battering; Edge protection; Safe access and egress; Keep spoil away from edge; Inspection after rain",
+    "permit_required": "Excavation permit / permit-to-dig where required",
+    "competent_person_required": "Competent person for excavation inspection",
+    "inspection_points": "Shoring; Edge protection; Access; Spoil distance; Water ingress; Post-rain inspection",
+    "emergency_response": "Call rescue; Evacuate edge area; Engineer inspection",
+    "common_mistakes": "No shoring / battering; No rescue arrangement; No inspection after rain",
+    "legal_reference_tags": [
+      "CSSR-Excavation",
+      "Excavation-Safety"
+    ],
+    "ai_checker_rules": [
+      "Open trench without edge protection / safe access / post-rain inspection = CRITICAL MISSING ITEM"
+    ]
+  },
+  {
+    "hazard_id": "HK-EXC-002",
+    "activity": "Work near underground electric cable, gas pipe or water pipe",
+    "category": "Excavation / Utilities",
+    "work_step": "Work near underground electric cable, gas pipe or water pipe",
+    "hazard": "Damage to electric cable, gas pipe, water pipe or drain; Electric shock; Gas leak; Flooding",
+    "consequence": "Explosion; Fire; Electric shock; Service interruption; Flooding",
+    "standard_controls": "Review utility drawings; CAT scan; Trial pit; Hand digging near services; Mark utility alignment; Permit-to-dig",
+    "permit_required": "Permit-to-dig",
+    "competent_person_required": "Competent supervisor; Utility coordinator where required",
+    "inspection_points": "Utility drawing; CAT scan record; Trial pit; Permit; Emergency contact",
+    "emergency_response": "Stop work; Evacuate; Isolate ignition source; Call utility company / emergency services",
+    "common_mistakes": "No utility drawing review; No CAT scan / trial pit; No gas/electric emergency response",
+    "legal_reference_tags": [
+      "Excavation-Safety",
+      "Electrical-Safety",
+      "Gas-Safety"
+    ],
+    "ai_checker_rules": [
+      "Underground utility risk without drawing review, detection, trial pit and permit-to-dig = CRITICAL MISSING ITEM"
+    ]
+  },
+  {
+    "hazard_id": "HK-CS-001",
+    "activity": "Entry into manhole, drain, tank or pipe",
+    "category": "Confined Space",
+    "work_step": "Entry into manhole, drain, tank or pipe",
+    "hazard": "Oxygen deficiency; Toxic gas; Flammable gas; Difficult access and egress",
+    "consequence": "Asphyxiation; Poisoning; Explosion; Unconsciousness; Fatality",
+    "standard_controls": "Competent person assessment; Confined space permit; Approved worker; Gas testing; Continuous monitoring; Forced ventilation; Standby person; Rescue equipment",
+    "permit_required": "Confined Space Permit",
+    "competent_person_required": "Competent person; Approved worker; Standby person",
+    "inspection_points": "Permit; Gas test record; Ventilation; Communication; Rescue equipment",
+    "emergency_response": "Do not enter for rescue without proper equipment; Call Fire Services; Evacuate on gas alarm",
+    "common_mistakes": "No standby person; No gas test; No rescue plan; Normal-work treatment",
+    "legal_reference_tags": [
+      "Confined-Spaces-Reg",
+      "Confined-Spaces-CoP"
+    ],
+    "ai_checker_rules": [
+      "Missing CP assessment / permit / gas test / ventilation / standby person / rescue equipment / no-unprotected-rescue rule = CRITICAL MISSING ITEM"
+    ]
+  },
+  {
+    "hazard_id": "HK-ELEC-001",
+    "activity": "Portable electric tools and temporary power use",
+    "category": "Temporary Electrical Work",
+    "work_step": "Portable electric tools and temporary power use",
+    "hazard": "Electric shock; Damaged cable; Improper plug; Wet electrical use; Fire",
+    "consequence": "Electric shock; Burn injury; Fire; Fatality",
+    "standard_controls": "Use RCD / ELCB; Pre-use check; Proper plug and socket; Tag out damaged tool; Use low voltage / waterproof equipment in wet areas",
+    "permit_required": "Electrical permit where required",
+    "competent_person_required": "Qualified electrician where temporary electrical setup is involved",
+    "inspection_points": "RCD test; Cable condition; Plug/socket; Wet area control; Tool tag",
+    "emergency_response": "Switch off power; First aid; Tag out equipment",
+    "common_mistakes": "No RCD for wet work; No cable inspection; No isolation before rescue",
+    "legal_reference_tags": [
+      "Electricity-Reg",
+      "Electrical-Safety"
+    ],
+    "ai_checker_rules": [
+      "Wet electrical work without RCD / water control / isolation rescue rule = CRITICAL MISSING ITEM"
+    ]
+  },
+  {
+    "hazard_id": "HK-HOT-001",
+    "activity": "Gas cutting, welding, grinding or hot work",
+    "category": "Hot Work",
+    "work_step": "Gas cutting, welding, grinding or hot work",
+    "hazard": "Fire; Explosion; Burn injury; Fume exposure; Flying sparks",
+    "consequence": "Fire outbreak; Serious burn; Smoke inhalation; Explosion; Property damage",
+    "standard_controls": "Hot work permit; Remove or protect combustibles; Fire extinguisher; Fire watch; Check hose / regulator / flashback arrestor where gas is used; Control sparks",
+    "permit_required": "Hot Work Permit",
+    "competent_person_required": "Competent hot work operator; Fire watch",
+    "inspection_points": "Permit; Extinguisher; Combustible control; Gas hose/cylinder; Ventilation; Post-work fire watch",
+    "emergency_response": "Stop work; Extinguish if safe; Evacuate; Call emergency services",
+    "common_mistakes": "No fire watch; No post-work inspection; No combustible control",
+    "legal_reference_tags": [
+      "Gas-Welding-Cutting-CoP",
+      "Manual-Electric-Arc-Welding-CoP",
+      "Fire-Safety"
+    ],
+    "ai_checker_rules": [
+      "Hot work without permit / extinguisher / fire watch / combustible control = CRITICAL MISSING ITEM"
+    ]
+  },
+  {
+    "hazard_id": "HK-DEMO-001",
+    "activity": "Hand-held breaker demolition or breaking work",
+    "category": "Demolition / Breaking / Cutting",
+    "work_step": "Hand-held breaker demolition or breaking work",
+    "hazard": "Flying fragments; Dust; Noise; Hand-arm vibration; Structural instability",
+    "consequence": "Eye injury; Hearing damage; HAVS; Collapse; Serious injury",
+    "standard_controls": "Approved demolition method; Screening; Water suppression; Eye / face protection; Hearing protection; Check concealed services",
+    "permit_required": "Demolition permit where required",
+    "competent_person_required": "Competent supervisor; Engineer where structural stability is affected",
+    "inspection_points": "Method statement; Screens; Dust suppression; Services check; PPE; Structural condition",
+    "emergency_response": "Stop work; Barricade; Engineer inspection; First aid",
+    "common_mistakes": "No service check; No dust/noise control; No structural stability review",
+    "legal_reference_tags": [
+      "Demolition",
+      "Noise-Reg",
+      "Eye-Protection"
+    ],
+    "ai_checker_rules": [
+      "Demolition affecting structure without method / temporary support / engineer review = CRITICAL MISSING ITEM"
+    ]
+  },
+  {
+    "hazard_id": "HK-FDN-002",
+    "activity": "Piling platform and plant access",
+    "category": "Foundation Works",
+    "work_step": "Piling platform and plant access",
+    "hazard": "Insufficient platform bearing capacity; Soft or uneven ground; Post-rain settlement; Plant overturning",
+    "consequence": "Piling rig / crane overturning; Fatality; Crushing injury",
+    "standard_controls": "Working platform design and inspection; Bearing capacity confirmation; Level and drainage control; Re-inspection after rain or alteration; Plant access route marking",
+    "permit_required": "Temporary works permit / platform certificate where required",
+    "competent_person_required": "Temporary works engineer; Competent plant operator; Site Supervisor",
+    "inspection_points": "Platform certificate; Ground condition; Drainage; Access route; Post-rain inspection",
+    "emergency_response": "Stop machine; Evacuate radius; Engineer check",
+    "common_mistakes": "No platform bearing check; No post-rain inspection; Treating piling as general excavation only",
+    "legal_reference_tags": [
+      "Temporary-Works",
+      "Excavator-CoP",
+      "Mobile-Crane-CoP"
+    ],
+    "ai_checker_rules": [
+      "Foundation works with piling rig / crane but no platform bearing capacity check = CRITICAL MISSING ITEM"
+    ]
+  },
+  {
+    "hazard_id": "HK-FDN-BP-003",
+    "activity": "Open bored pile hole protection",
+    "category": "Foundation Works",
+    "work_step": "Open bored pile hole protection",
+    "hazard": "Fall into pile bore; Edge collapse; Uncovered opening",
+    "consequence": "Fatality; Serious injury; Rescue difficulty",
+    "standard_controls": "Hard barrier around pile bore; Cover bore when unattended; No heavy material near edge; Adequate lighting; Safe access",
+    "permit_required": "Excavation / piling permit where required",
+    "competent_person_required": "Competent supervisor",
+    "inspection_points": "Barrier; Cover; Edge condition; Lighting; Rescue arrangement",
+    "emergency_response": "Call rescue; Barricade opening; Stop adjacent work",
+    "common_mistakes": "Open bore without cover/barrier; No rescue arrangement",
+    "legal_reference_tags": [
+      "Excavation-Safety"
+    ],
+    "ai_checker_rules": [
+      "Open pile bore without hard barrier, cover and rescue arrangement = CRITICAL MISSING ITEM"
+    ]
+  },
+  {
+    "hazard_id": "HK-FDN-BP-007",
+    "activity": "Rebar cage lifting and lowering into pile bore",
+    "category": "Foundation Works",
+    "work_step": "Rebar cage lifting and lowering into pile bore",
+    "hazard": "Rebar cage instability; Lifting lug failure; Load swinging; Pinch point",
+    "consequence": "Crushing injury; Fatality; Cage deformation",
+    "standard_controls": "Lifting plan; Spreader beam; Lifting lug design / inspection; Tag line; Exclusion zone; Stable connection platform",
+    "permit_required": "Lifting permit where required",
+    "competent_person_required": "Lifting supervisor; Signaller; Rigger; Crane operator",
+    "inspection_points": "Lifting plan; Gear certificates; Lifting points; Tag line; Exclusion zone",
+    "emergency_response": "Stop lift; Evacuate lifting radius; Inspect lifting points",
+    "common_mistakes": "No lifting plan; No tag line; No exclusion zone; No lifting lug check",
+    "legal_reference_tags": [
+      "LALG-Reg",
+      "Mobile-Crane-CoP"
+    ],
+    "ai_checker_rules": [
+      "Rebar cage/casing lifting without lifting plan, valid gear, tag line and exclusion zone = CRITICAL MISSING ITEM"
+    ]
   }
 ]
-

@@ -2,34 +2,145 @@
   "mandatory_rules": [
     {
       "condition": "activity contains confined_space keywords",
-      "must_include": ["competent person assessment", "permit", "approved worker", "gas testing", "ventilation", "standby person", "rescue equipment", "no unprotected rescue rule"],
+      "must_include": [
+        "competent person assessment",
+        "permit",
+        "approved worker",
+        "gas testing",
+        "ventilation",
+        "standby person",
+        "rescue equipment",
+        "no unprotected rescue rule"
+      ],
       "default_risk": "HR"
     },
     {
       "condition": "activity contains work_at_height keywords",
-      "must_include": ["safe working platform", "guardrail or fall arrest system", "independent lifeline where applicable", "falling object control", "rescue arrangement"],
+      "must_include": [
+        "safe working platform",
+        "guardrail or fall arrest system",
+        "independent lifeline where applicable",
+        "falling object control",
+        "rescue arrangement"
+      ],
       "default_risk": "HR"
     },
     {
       "condition": "activity contains lifting keywords",
-      "must_include": ["lifting certificate", "SWL check", "competent operator", "signaller / rigger", "exclusion zone", "lifting plan if non-routine"],
+      "must_include": [
+        "lifting certificate",
+        "SWL check",
+        "competent operator",
+        "signaller / rigger",
+        "exclusion zone",
+        "lifting plan if non-routine"
+      ],
       "default_risk": "HR"
     },
     {
       "condition": "activity contains wet coring or wire cutting keywords",
-      "must_include": ["electrical safety", "RCD / ELCB", "water control", "machine guarding", "flying object protection", "support of cut section"],
+      "must_include": [
+        "electrical safety",
+        "RCD / ELCB",
+        "water control",
+        "machine guarding",
+        "flying object protection",
+        "support of cut section"
+      ],
       "default_risk": "HR"
     },
     {
       "condition": "activity contains hot_work keywords",
-      "must_include": ["hot work permit", "fire extinguisher", "remove combustible materials", "fire watch", "gas cylinder control where applicable"],
+      "must_include": [
+        "hot work permit",
+        "fire extinguisher",
+        "remove combustible materials",
+        "fire watch",
+        "gas cylinder control where applicable"
+      ],
       "default_risk": "HR"
     },
     {
       "condition": "activity contains plant_vehicle keywords",
-      "must_include": ["trained operator", "daily inspection", "plant-person segregation", "banksman where required", "speed control", "reversing control"],
+      "must_include": [
+        "trained operator",
+        "daily inspection",
+        "plant-person segregation",
+        "banksman where required",
+        "speed control",
+        "reversing control"
+      ],
+      "default_risk": "HR"
+    },
+    {
+      "condition": "activity contains scaffolding keywords",
+      "must_include": [
+        "competent person inspection",
+        "Form 5 / inspection record where applicable",
+        "safe platform / guardrail / toe board",
+        "lifeline where required",
+        "exclusion zone",
+        "no unauthorised alteration",
+        "rescue arrangement"
+      ],
+      "default_risk": "HR"
+    },
+    {
+      "condition": "activity contains scaffold dismantling keywords",
+      "must_include": [
+        "top-down sequence",
+        "last-fixed-first-removed principle",
+        "one independent lifeline per worker",
+        "Form 5 / competent person inspection",
+        "no flying bamboo",
+        "exclusion zone below",
+        "wall-tie relocation control",
+        "emergency response"
+      ],
+      "default_risk": "HR"
+    },
+    {
+      "condition": "activity contains excavation or utilities keywords",
+      "must_include": [
+        "utility drawing review",
+        "CAT scan / detection",
+        "trial pit where required",
+        "permit-to-dig",
+        "edge protection / shoring",
+        "safe access / egress",
+        "inspection after rain",
+        "emergency response"
+      ],
+      "default_risk": "HR"
+    },
+    {
+      "condition": "activity contains foundation keywords",
+      "must_include": [
+        "working platform bearing capacity check",
+        "plant certificate / inspection",
+        "competent operator",
+        "banksman / signaller",
+        "plant-person segregation",
+        "underground utility check",
+        "lifting plan where lifting is involved",
+        "open bore / excavation protection",
+        "emergency response"
+      ],
+      "default_risk": "HR"
+    },
+    {
+      "condition": "activity contains demolition keywords",
+      "must_include": [
+        "approved demolition method",
+        "structural stability / temporary support review where applicable",
+        "concealed services check",
+        "falling object control",
+        "dust / noise control",
+        "eye / face protection",
+        "exclusion zone",
+        "emergency response"
+      ],
       "default_risk": "HR"
     }
   ]
 }
-

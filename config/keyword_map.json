@@ -1,17 +1,176 @@
 {
-  "work_at_height": ["work at height", "scaffold", "platform", "ladder", "roof", "edge", "MEWP", "BMU", "suspended working platform"],
-  "lifting": ["lifting", "crane", "lifting gear", "sling", "chain block", "hoist", "tower crane", "mobile crane"],
-  "glass_facade": ["curtain wall", "glazing", "deglazing", "reglazing", "sealant", "water test", "vacuum lifter"],
-  "confined_space": ["confined space", "manhole", "tank", "pipe", "drain", "silo", "trench"],
-  "excavation": ["trench", "excavation", "underground services", "shoring", "temporary support"],
-  "roadworks": ["TTA", "road opening", "traffic", "pedestrian", "public interface"],
-  "hot_work": ["hot work", "welding", "gas cutting", "flame cutting", "grinding", "spark"],
-  "electrical": ["electrical", "RCD", "ELCB", "LOTO", "temporary power", "cable"],
-  "plant_vehicle": ["forklift", "excavator", "loader", "mobile plant", "site vehicle", "reversing", "banksman"],
-  "manual_handling": ["manual handling", "lifting by hand", "heavy load", "awkward posture"],
-  "demolition": ["demolition", "breaker", "wire cutting", "wet coring", "structural opening"],
-  "environment": ["dust", "noise", "chemical", "SDS", "heat stress", "adverse weather"],
-  "fire": ["fire", "flammable", "fire watch", "smoking", "combustible"],
-  "public_interface": ["public", "pedestrian", "site boundary", "traffic interface"]
+  "work_at_height": [
+    "work at height",
+    "scaffold",
+    "platform",
+    "ladder",
+    "roof",
+    "edge",
+    "MEWP",
+    "BMU",
+    "suspended working platform"
+  ],
+  "lifting": [
+    "lifting",
+    "crane",
+    "lifting gear",
+    "sling",
+    "chain block",
+    "hoist",
+    "tower crane",
+    "mobile crane"
+  ],
+  "glass_facade": [
+    "curtain wall",
+    "glazing",
+    "deglazing",
+    "reglazing",
+    "sealant",
+    "water test",
+    "vacuum lifter"
+  ],
+  "confined_space": [
+    "confined space",
+    "manhole",
+    "tank",
+    "pipe",
+    "drain",
+    "silo",
+    "trench"
+  ],
+  "excavation": [
+    "trench",
+    "excavation",
+    "underground services",
+    "shoring",
+    "temporary support"
+  ],
+  "roadworks": [
+    "TTA",
+    "road opening",
+    "traffic",
+    "pedestrian",
+    "public interface"
+  ],
+  "hot_work": [
+    "hot work",
+    "welding",
+    "gas cutting",
+    "flame cutting",
+    "grinding",
+    "spark"
+  ],
+  "electrical": [
+    "electrical",
+    "RCD",
+    "ELCB",
+    "LOTO",
+    "temporary power",
+    "cable"
+  ],
+  "plant_vehicle": [
+    "forklift",
+    "excavator",
+    "loader",
+    "mobile plant",
+    "site vehicle",
+    "reversing",
+    "banksman"
+  ],
+  "manual_handling": [
+    "manual handling",
+    "lifting by hand",
+    "heavy load",
+    "awkward posture"
+  ],
+  "demolition": [
+    "demolition",
+    "breaker",
+    "wire cutting",
+    "wet coring",
+    "structural opening"
+  ],
+  "environment": [
+    "dust",
+    "noise",
+    "chemical",
+    "SDS",
+    "heat stress",
+    "adverse weather"
+  ],
+  "fire": [
+    "fire",
+    "flammable",
+    "fire watch",
+    "smoking",
+    "combustible"
+  ],
+  "public_interface": [
+    "public",
+    "pedestrian",
+    "site boundary",
+    "traffic interface"
+  ],
+  "scaffolding": [
+    "棚架",
+    "竹棚",
+    "金屬棚",
+    "拆棚",
+    "改棚",
+    "拉結",
+    "連牆器",
+    "scaffold",
+    "bamboo scaffold",
+    "metal scaffold",
+    "scaffold dismantling",
+    "wall tie"
+  ],
+  "foundation": [
+    "地基",
+    "樁",
+    "樁基",
+    "樁機",
+    "鑽孔樁",
+    "灌注樁",
+    "bored pile",
+    "mini-pile",
+    "micro-pile",
+    "socketed H-pile",
+    "H-pile",
+    "pipe pile",
+    "driven pile",
+    "pile cap",
+    "pile head",
+    "pile platform",
+    "piling platform",
+    "casing",
+    "tremie",
+    "rebar cage",
+    "bentonite",
+    "slurry",
+    "grouting",
+    "diaphragm wall",
+    "barrette",
+    "guide wall",
+    "sheet pile",
+    "soldier pile",
+    "ELS",
+    "strut",
+    "ground anchor",
+    "dewatering",
+    "settlement monitoring"
+  ],
+  "utilities": [
+    "地下管線",
+    "電纜",
+    "煤氣",
+    "水管",
+    "CAT scan",
+    "trial pit",
+    "permit-to-dig",
+    "underground utilities",
+    "gas pipe",
+    "water pipe",
+    "utility drawing"
+  ]
 }
-
