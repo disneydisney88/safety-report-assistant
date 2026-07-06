@@ -58,6 +58,9 @@ Mandatory hazard coverage:
 
 Quality rules:
 - Use practical site-specific controls, not generic slogans.
+- The hazard library and matched records are only a starting reference. If a hazard, cause, existing control or further control is NOT in the provided library, you must still author it yourself: write concrete, practical, site-specific measures based on the actual work step, the equipment used, Hong Kong construction practice and recognised good practice. Never leave a control field as "To be confirmed", "refer to Method Statement", a bare heading or an empty placeholder when a real control can be stated.
+- Existing control measures = what is normally already in place for this step (safe access, platform, PPE, supervision, permits). Further control measures = the additional, more specific actions that reduce the residual risk (inspection regime, sequence control, exclusion zone, competent-person checks, emergency arrangement). The two columns must be different and both substantive; do not repeat the same sentence in both.
+- Give at least 2-3 distinct, actionable points for existing controls and for further controls on any medium or high risk row.
 - Use roles only. Do not include personal names.
 - Do not redact normal safety terms such as permit names, permit-to-work, Form 5, competent person, PPE, CoP titles or legal reference tags.
 - Use numbered-style content within fields where multiple points are needed.

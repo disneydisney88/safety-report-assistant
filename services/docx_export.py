@@ -6,11 +6,11 @@ from typing import Any
 
 from docx import Document
 from docx.enum.section import WD_ORIENT
-from docx.enum.table import WD_TABLE_ALIGNMENT, WD_CELL_VERTICAL_ALIGNMENT
+from docx.enum.table import WD_TABLE_ALIGNMENT, WD_CELL_VERTICAL_ALIGNMENT, WD_ROW_HEIGHT_RULE
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
-from docx.shared import Inches, Pt, RGBColor
+from docx.shared import Emu, Inches, Pt, RGBColor
 
 from services.ai_prompts import DISCLAIMER
 from services.language_tools import en_term_cleanup as _shared_en_cleanup
@@ -360,12 +360,12 @@ def build_docx(title: str, sections: dict[str, Any]) -> BytesIO:
         doc.add_heading(str(heading), level=2)
         if isinstance(value, list) and value and isinstance(value[0], dict):
             keys = list(value[0].keys())
-            table = doc.add_table(rows=1, cols=len(keys))
+            table = doc.add_table(rows=1 + len(value), cols=len(keys))
             table.style = "Table Grid"
             for idx, key in enumerate(keys):
                 table.rows[0].cells[idx].text = str(key)
-            for row in value:
-                cells = table.add_row().cells
+            for row_index, row in enumerate(value, start=1):
+                cells = table.rows[row_index].cells
                 for idx, key in enumerate(keys):
                     cells[idx].text = str(row.get(key, ""))
         elif isinstance(value, list):
@@ -572,25 +572,49 @@ def _style_table(table, header_fill: str = "E8EEF5") -> None:
 
 def _set_table_widths(table, widths: list[float]) -> None:
     table.autofit = False
-    total_dxa = int(sum(widths) * 1440)
+    dxa = [int(width * 1440) for width in widths]
+    total_dxa = sum(dxa)
     tbl_pr = table._tbl.tblPr
+
+    # Force fixed layout so Word honours the column grid instead of auto-fitting.
+    tbl_layout = tbl_pr.find(qn("w:tblLayout"))
+    if tbl_layout is None:
+        tbl_layout = OxmlElement("w:tblLayout")
+        tbl_pr.append(tbl_layout)
+    tbl_layout.set(qn("w:type"), "fixed")
+
     tbl_w = tbl_pr.find(qn("w:tblW"))
     if tbl_w is None:
         tbl_w = OxmlElement("w:tblW")
         tbl_pr.append(tbl_w)
     tbl_w.set(qn("w:type"), "dxa")
     tbl_w.set(qn("w:w"), str(total_dxa))
+
+    # In fixed layout Word sizes columns from w:tblGrid, so it must be rewritten
+    # to the intended widths (python-docx otherwise leaves it equal-width).
+    tbl = table._tbl
+    grid = tbl.find(qn("w:tblGrid"))
+    if grid is None:
+        grid = OxmlElement("w:tblGrid")
+        tbl.insert(list(tbl).index(tbl_pr) + 1, grid)
+    for existing in list(grid.findall(qn("w:gridCol"))):
+        grid.remove(existing)
+    for width_dxa in dxa:
+        grid_col = OxmlElement("w:gridCol")
+        grid_col.set(qn("w:w"), str(width_dxa))
+        grid.append(grid_col)
+
     for row in table.rows:
-        for idx, width in enumerate(widths):
+        for idx, width_dxa in enumerate(dxa):
             if idx < len(row.cells):
-                row.cells[idx].width = Inches(width)
+                row.cells[idx].width = Emu(int(width_dxa * 635))  # 1 dxa = 635 EMU
                 tc_pr = row.cells[idx]._tc.get_or_add_tcPr()
                 tc_w = tc_pr.find(qn("w:tcW"))
                 if tc_w is None:
                     tc_w = OxmlElement("w:tcW")
                     tc_pr.append(tc_w)
                 tc_w.set(qn("w:type"), "dxa")
-                tc_w.set(qn("w:w"), str(int(width * 1440)))
+                tc_w.set(qn("w:w"), str(width_dxa))
 
 
 def _add_heading(doc: Document, text: str, level: int = 1) -> None:
@@ -605,9 +629,11 @@ def _add_heading(doc: Document, text: str, level: int = 1) -> None:
 
 
 def _add_key_value_table(doc: Document, rows: list[tuple[str, Any]]) -> None:
-    table = doc.add_table(rows=0, cols=2)
-    for label, value in rows:
-        cells = table.add_row().cells
+    # Rows are created up front (not via add_row on an empty table): LibreOffice
+    # / OpenOffice mis-render tables that start with rows=0 and grow by add_row.
+    table = doc.add_table(rows=len(rows), cols=2)
+    for row_index, (label, value) in enumerate(rows):
+        cells = table.rows[row_index].cells
         _set_cell_text(cells[0], label, bold=True, size=10.5)
         _set_cell_text(cells[1], value, size=10.5)
     _style_table(table)
@@ -676,15 +702,15 @@ def _risk_score_tables(doc: Document, matrix: dict[str, Any], language: str = "E
                 _set_cell_shading(cell, _risk_fill(score))
         _style_table(grid, header_fill="F2F4F7")
         doc.add_paragraph(static["risk_index_guide"])
-        guide = doc.add_table(rows=1, cols=3)
         guide_headers = ["Colour", "Risk Index", "Conditions for Tolerance"]
         if language in {"Traditional Chinese", "Simplified Chinese"}:
             guide_headers = ["\u984f\u8272", "\u98a8\u96aa\u6307\u6578", "\u53ef\u5bb9\u5fcd\u689d\u4ef6"]
+        guide_rows = static.get("risk_guide_rows", [])
+        guide = doc.add_table(rows=1 + len(guide_rows), cols=3)
         for idx, header in enumerate(guide_headers):
             _set_cell_text(guide.rows[0].cells[idx], header, bold=True, size=10)
-        guide_rows = static.get("risk_guide_rows", [])
-        for fill, label, action in guide_rows:
-            cells = guide.add_row().cells
+        for row_index, (fill, label, action) in enumerate(guide_rows, start=1):
+            cells = guide.rows[row_index].cells
             _set_cell_text(cells[0], "", size=10)
             _set_cell_shading(cells[0], fill)
             _set_cell_text(cells[1], label, size=10)
@@ -820,18 +846,28 @@ def build_ra_docx(report: dict[str, Any], ra_rows: list[dict[str, Any]], matrix:
         lbl["residual"],
         lbl["actual"],
     ]
-    table = doc.add_table(rows=1, cols=len(headers))
+    # All rows created up front; add_row-on-empty tables mis-render in OpenOffice.
+    table = doc.add_table(rows=1 + len(ra_rows), cols=len(headers))
     for idx, header in enumerate(headers):
         _set_cell_text(table.rows[0].cells[idx], header, bold=True, size=10.0, align=WD_ALIGN_PARAGRAPH.CENTER)
+    previous_step = None
     for item_no, row in enumerate(ra_rows, start=1):
-        cells = table.add_row().cells
+        cells = table.rows[item_no].cells
         is_weather = _is_weather_row(row)
         p_value, ic_value = _extract_probability_impact(row.get("Initial Risk"))
         residual_score = _extract_score(row.get("Residual Risk"))
         residual_code = _extract_level_code(row.get("Residual Risk"))
         actual_residual = f"{residual_score or '-'} {residual_code}".strip()
         _set_cell_text(cells[0], item_no, size=10.0, align=WD_ALIGN_PARAGRAPH.CENTER)
-        _set_cell_text(cells[1], _clean_for_main_risk_row(row.get("Work Step"), language, is_weather), size=10.0)
+        # A work step with several hazards spans several rows; only print the
+        # step text on the first row of the group so the table reads cleanly.
+        step_text = _clean_for_main_risk_row(row.get("Work Step"), language, is_weather)
+        step_key = str(row.get("Source Step ID") or "") + "|" + str(row.get("Work Step") or "")
+        if step_key == previous_step:
+            _set_cell_text(cells[1], "", size=10.0)
+        else:
+            _set_cell_text(cells[1], step_text, size=10.0)
+            previous_step = step_key
         _set_cell_text(cells[2], _numbered_text(_clean_for_main_risk_row(row.get("Hazard"), language, is_weather)), size=10.0)
         _set_cell_text(cells[3], _clean_for_main_risk_row(row.get("Persons at Risk"), language, is_weather), size=10.0)
         _set_cell_text(cells[4], _numbered_text(_clean_for_main_risk_row(row.get("Cause of Hazard") or row.get("Remarks") or "Cause to be confirmed against Method Statement / site condition", language, is_weather)), size=10.0)
@@ -855,7 +891,10 @@ def build_ra_docx(report: dict[str, Any], ra_rows: list[dict[str, Any]], matrix:
             _set_cell_shading(cells[13], _risk_fill(residual_score))
             _set_cell_shading(cells[14], _risk_fill(residual_score))
     _style_table(table, header_fill="FFF44F")
-    _set_table_widths(table, [0.32, 1.05, 1.05, 0.95, 1.2, 0.9, 1.55, 0.32, 0.32, 0.72, 1.3, 1.15, 0.95, 0.85, 0.82])
+    # Widths tuned to sit comfortably inside the A3 landscape text column (~14.5",
+    # leaving margin so no viewer collapses the table): narrow P/IC/Item, generous
+    # control-measure columns, all trailing columns kept visible.
+    _set_table_widths(table, [0.35, 1.2, 1.2, 0.9, 1.3, 0.95, 1.7, 0.35, 0.35, 0.78, 1.5, 1.3, 0.9, 0.85, 0.85])
 
     doc.add_paragraph(static.get("minimum_acceptable_risk", "Minimum acceptable residual risk: MR or below unless specifically accepted."))
     doc.add_paragraph(static.get("pi_note", "P: probability or likelihood rating; IC: Impact Consequence rating."))
@@ -873,32 +912,46 @@ def build_ra_docx(report: dict[str, Any], ra_rows: list[dict[str, Any]], matrix:
 
     _add_heading(doc, lbl["approval"], level=2)
     if language in {"Traditional Chinese", "Simplified Chinese"}:
-        signature_rows = [
-            [lbl["role"], lbl["position"], lbl["name"], lbl["signature"], lbl["date"]],
-            ["\u7de8\u88fd", "\u5b89\u5168\u9867\u554f / \u5b89\u5168\u4e3b\u4efb", "____________________", "____________________", "__________"],
-            ["\u5be9\u95b1", "\u9805\u76ee\u7d93\u7406", "____________________", "____________________", "__________"],
-            ["\u5be9\u95b1", "\u5de5\u5730\u76e3\u7763 / \u5de5\u982d", "____________________", "____________________", "__________"],
-            ["\u78ba\u8a8d", "\u5206\u5224\u5546\u4ee3\u8868", "____________________", "____________________", "__________"],
-            ["\u6838\u5be6", "\u5408\u8cc7\u683c\u4eba\u58eb", "____________________", "____________________", "__________"],
-            ["\u78ba\u8a8d", "\u5ba2\u6236\u4ee3\u8868\uff08\u5982\u9700\u8981\uff09", "____________________", "____________________", "__________"],
+        approval_header = [lbl["role"], lbl["position"], lbl["name"], lbl["signature"], lbl["date"]]
+        approval_body = [
+            ["\u7de8\u88fd", "\u5b89\u5168\u9867\u554f / \u5b89\u5168\u4e3b\u4efb"],
+            ["\u5be9\u95b1", "\u9805\u76ee\u7d93\u7406"],
+            ["\u5be9\u95b1", "\u5de5\u5730\u76e3\u7763 / \u5de5\u982d"],
+            ["\u78ba\u8a8d", "\u5206\u5224\u5546\u4ee3\u8868"],
+            ["\u6838\u5be6", "\u5408\u8cc7\u683c\u4eba\u58eb"],
+            ["\u78ba\u8a8d", "\u5ba2\u6236\u4ee3\u8868\uff08\u5982\u9700\u8981\uff09"],
         ]
     else:
-        signature_rows = [
-            [lbl["role"], lbl["position"], lbl["name"], lbl["signature"], lbl["date"]],
-            ["Prepared by", "Safety Consultant / Safety Officer", "____________________", "____________________", "__________"],
-            ["Reviewed by", "Project Manager", "____________________", "____________________", "__________"],
-            ["Reviewed by", "Site Supervisor / Foreman", "____________________", "____________________", "__________"],
-            ["Acknowledged by", "Subcontractor Representative", "____________________", "____________________", "__________"],
-            ["Verified by", "Competent Person", "____________________", "____________________", "__________"],
-            ["Acknowledged by", "Client Representative (if required)", "____________________", "____________________", "__________"],
+        approval_header = [lbl["role"], lbl["position"], lbl["name"], lbl["signature"], lbl["date"]]
+        approval_body = [
+            ["Prepared by", "Safety Consultant / Safety Officer"],
+            ["Reviewed by", "Project Manager"],
+            ["Reviewed by", "Site Supervisor / Foreman"],
+            ["Acknowledged by", "Subcontractor Representative"],
+            ["Verified by", "Competent Person"],
+            ["Acknowledged by", "Client Representative (if required)"],
         ]
-    table = doc.add_table(rows=0, cols=5)
-    for row_index, row in enumerate(signature_rows):
-        cells = table.add_row().cells
-        for idx, value in enumerate(row):
-            _set_cell_text(cells[idx], value, bold=(row_index == 0), size=11.0)
+    # Fixed row count up front so OpenOffice / LibreOffice render a real grid.
+    table = doc.add_table(rows=1 + len(approval_body), cols=5)
+    for idx, value in enumerate(approval_header):
+        _set_cell_text(table.rows[0].cells[idx], value, bold=True, size=11.0, align=WD_ALIGN_PARAGRAPH.CENTER)
+    for row_index, (role, position) in enumerate(approval_body, start=1):
+        cells = table.rows[row_index].cells
+        _set_cell_text(cells[0], role, bold=True, size=10.5)
+        _set_cell_text(cells[1], position, size=10.5)
+        # Name / Signature / Date left blank as write-in boxes.
+        for idx in (2, 3, 4):
+            _set_cell_text(cells[idx], "", size=10.5)
+        table.rows[row_index].height = Inches(0.42)
+        table.rows[row_index].height_rule = WD_ROW_HEIGHT_RULE.AT_LEAST
     _style_table(table, header_fill="FFF44F")
-    _set_table_widths(table, [2.0, 4.0, 3.4, 3.4, 2.0])
+    # Shade the role column lightly so the sheet reads as a proper approval grid.
+    for body_row in table.rows[1:]:
+        _set_cell_shading(body_row.cells[0], "F2F4F7")
+    # Kept well under the page width (~12") and centred; a 5-column signature
+    # block does not need the full A3 span and narrow tables render reliably
+    # across Word, WPS and LibreOffice.
+    _set_table_widths(table, [1.6, 3.2, 2.8, 2.8, 1.6])
 
     buffer = BytesIO()
     doc.save(buffer)
