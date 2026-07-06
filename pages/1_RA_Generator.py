@@ -24,7 +24,7 @@ from services.language_tools import (
     normalize_rows_language,
     rows_language_mismatch_count,
 )
-from services.nvidia_client import generate_json, has_api_key
+from services.nvidia_client import generate_json, has_api_key, model_name, test_connection
 from services.validators import MethodStatementExtraction, RADraft
 
 st.set_page_config(page_title="RA Generator", layout="wide", initial_sidebar_state="collapsed")
@@ -439,26 +439,77 @@ ZH_GENERIC_ITEM = {
 }
 
 
-def _fallback_ra_zh(data: dict) -> RADraft:
-    """Chinese local fallback: fully Chinese generic row per confirmed step.
+_DISPLAY_TO_ITEM_KEYS = {
+    "Source Step ID": "source_step_id",
+    "Source Step Original": "source_step_text_original",
+    "Source Step Translated": "source_step_text_translated",
+    "Hazard ID": "hazard_id",
+    "Hazard Category": "hazard_category",
+    "Work Step": "work_step",
+    "Hazard": "hazard",
+    "Cause of Hazard": "cause_of_hazard",
+    "Possible Consequence": "possible_consequence",
+    "Persons at Risk": "persons_at_risk",
+    "Initial Risk": "initial_risk_rating",
+    "Existing Controls": "existing_control_measures",
+    "Additional Controls Required": "additional_control_measures_required",
+    "Residual Risk": "residual_risk_rating",
+    "Legal / CoP Reference": "legal_cop_reference",
+    "Permit / Competent Person": "permit_certificate_competent_person_required",
+    "Inspection / Monitoring": "inspection_monitoring_points",
+    "Responsible Person": "responsible_person",
+    "Remarks": "remarks_items_to_be_confirmed",
+}
 
-    Scaffold-specific, adverse-weather and public-interface Chinese rows are
-    appended afterwards by ensure_required_ra_rows where applicable.
+
+def _scaffold_hazard_id_for_step(step_text: str) -> str:
+    """Pick the most relevant scaffold-dismantling hazard for a confirmed step
+    so the local fallback differentiates steps instead of repeating one row."""
+    text = str(step_text or "")
+    if any(token in text for token in ["拉結", "連牆", "拉扱", "斜撐", "wall tie"]):
+        return "SCAF-DIS-06"
+    if any(token in text for token in ["傳", "搬", "運", "竹料", "竹枝", "落至地面", "傳到地面"]):
+        return "SCAF-DIS-03"
+    if any(token in text for token in ["次序", "橫杆", "直杆", "軒", "針", "由上而下", "逐層"]):
+        return "SCAF-DIS-05"
+    if any(token in text for token in ["網", "帆布", "鋅鐵", "尼龍", "斜棚"]):
+        return "SCAF-DIS-02"
+    return "SCAF-DIS-02"
+
+
+def _fallback_ra_zh(data: dict) -> RADraft:
+    """Chinese local fallback, one row per confirmed step.
+
+    For bamboo-scaffold dismantling each step is mapped to the most relevant
+    reviewed scaffold hazard so the steps differ; other work uses the generic
+    Chinese row. Adverse-weather / public-interface rows are appended later by
+    ensure_required_ra_rows.
     """
     matrix = data.get("risk_matrix", {})
+    scaffold = is_scaffold_dismantling_work(data)
     items = []
     for record in step_records(data.get("confirmed_steps", [])):
-        items.append(
-            {
-                "source_step_id": record["source_step_id"],
-                "source_step_text_original": record["step_text"],
-                "source_step_text_translated": record["step_text"],
-                "work_step": record["step_text"],
-                "initial_risk_rating": _rating_from_matrix(matrix, 2, 5),
-                "residual_risk_rating": _rating_from_matrix(matrix, 1, 5),
-                **ZH_GENERIC_ITEM,
-            }
-        )
+        if scaffold:
+            hazard_id = _scaffold_hazard_id_for_step(record["step_text"])
+            source = {"source_step_id": record["source_step_id"], "step_text": record["step_text"]}
+            display = scaffold_required_row(data, hazard_id, source, chinese=True)
+            item = {_DISPLAY_TO_ITEM_KEYS[key]: value for key, value in display.items() if key in _DISPLAY_TO_ITEM_KEYS}
+            item["source_step_text_original"] = record["step_text"]
+            item["source_step_text_translated"] = record["step_text"]
+            item["work_step"] = record["step_text"]
+            items.append(item)
+        else:
+            items.append(
+                {
+                    "source_step_id": record["source_step_id"],
+                    "source_step_text_original": record["step_text"],
+                    "source_step_text_translated": record["step_text"],
+                    "work_step": record["step_text"],
+                    "initial_risk_rating": _rating_from_matrix(matrix, 2, 5),
+                    "residual_risk_rating": _rating_from_matrix(matrix, 1, 5),
+                    **ZH_GENERIC_ITEM,
+                }
+            )
     return RADraft(disclaimer=DISCLAIMER, overall_risk_level="待確認", items=items)
 
 
@@ -1342,6 +1393,24 @@ if st.session_state.get("ra_stage") in {"confirm", "generated"}:
         help="Unchecked uses local risk library immediately. Checked sends redacted data to the server-side NVIDIA API.",
     )
 
+    # Live AI-backend status so the user knows whether the detailed AI report or
+    # the generic local template will be produced.
+    if use_ai_backend:
+        if not has_api_key():
+            st.error(
+                "⚠️ AI 後端未啟用：Streamlit Secrets 未設定 `NVIDIA_API_KEY`。"
+                "現在只會輸出**通用本地範本**（每個工序內容相近）。"
+                "請在 Streamlit Cloud → Settings → Secrets 加入 NVIDIA_API_KEY 以獲得詳細 AI 報告。\n\n"
+                "AI backend OFF: NVIDIA_API_KEY is not set, so only the generic local template will be produced."
+            )
+        else:
+            if st.button("測試 AI 連線 / Test AI connection"):
+                ok, message = test_connection()
+                if ok:
+                    st.success(f"AI 連線正常 / AI connected: {model_name()} ({message})")
+                else:
+                    st.error(f"AI 連線失敗 / AI connection failed: {message} — 會改用本地範本。")
+
     if st.button(UI["generate"]):
         confirmed_steps = split_steps(confirmed_text)
         data["confirmed_steps"] = confirmed_steps
@@ -1355,18 +1424,27 @@ if st.session_state.get("ra_stage") in {"confirm", "generated"}:
         data["language_instruction"] = LANGUAGE_INSTRUCTIONS[edited_output_language]
         data["use_ai_backend"] = use_ai_backend
         flags = []
+        ra_source = "local"
+        ra_source_reason = ""
         if use_ai_backend:
             with st.spinner("Generating RA report with NVIDIA AI... / NVIDIA AI 正在生成風險評估報告，請稍候..."):
                 draft, flags, error = generate_ra_with_ai(data)
             if draft is None:
+                ra_source_reason = str(error)
                 st.info(f"AI unavailable or output invalid; local risk-library template used. ({error})")
                 draft = fallback_ra(data)
             elif not draft.items:
+                ra_source_reason = "ai_returned_no_items"
                 st.info("AI returned no risk rows; local risk-library template used.")
                 draft = fallback_ra(data)
+            else:
+                ra_source = "ai"
         else:
+            ra_source_reason = "ai_backend_unchecked"
             with st.spinner("Generating local risk-library draft... / 正在使用本地風險庫生成草稿..."):
                 draft = fallback_ra(data)
+        data["ra_source"] = ra_source
+        data["ra_source_reason"] = ra_source_reason
         draft = enforce_output_language(data, draft, use_ai_backend)
         st.session_state["ra_input"] = data
         st.session_state["ra_draft"] = draft.model_dump()
@@ -1378,6 +1456,17 @@ if st.session_state.get("ra_stage") in {"confirm", "generated"}:
 if st.session_state.get("ra_stage") == "generated" and "ra_draft" in st.session_state:
     st.subheader(UI["step3"])
     data = st.session_state["ra_input"]
+    if data.get("ra_source") == "ai":
+        st.success("✅ 本報告由 NVIDIA AI 生成（詳細、逐工序）/ Generated by NVIDIA AI (detailed, per work step).")
+    else:
+        reason = data.get("ra_source_reason", "")
+        hint = "（Streamlit Secrets 缺少 NVIDIA_API_KEY）" if reason == "missing_api_key" else (f"（原因 / reason: {reason}）" if reason else "")
+        st.warning(
+            "📄 本報告使用**本地通用範本**，並非 AI 生成，所以各工序內容相近。"
+            f"{hint} 若要詳細、逐工序、按控制階層的 AI 報告，請確認 Streamlit Secrets 已設定 "
+            "`NVIDIA_API_KEY`（及 `NVIDIA_MAX_TOKENS = 8192`），並在第二步勾選 Use NVIDIA AI backend 後重新生成。\n\n"
+            "This report used the LOCAL generic template (not AI), so steps look similar."
+        )
     draft = RADraft.model_validate(st.session_state["ra_draft"])
     rows = ensure_required_ra_rows(data, ra_rows(draft))
     rows = normalize_rows_language(rows, data.get("report_language", "English"))
