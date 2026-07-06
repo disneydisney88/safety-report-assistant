@@ -142,6 +142,7 @@ def load_json(name: str, fallback):
 
 RISK_LIBRARY = load_json("risk_library.json", [])
 KEYWORD_MAP = load_json("keyword_map.json", {})
+LEGAL_REF_TAGS = load_json("legal_ref_tags.json", {})
 RISK_MATRICES = load_json("risk_matrix.json", {"matrices": {}}).get("matrices", {})
 JURISDICTION_PROFILES = load_json("jurisdiction_profiles.json", {"jurisdiction_profiles": []}).get("jurisdiction_profiles", [])
 
@@ -968,6 +969,17 @@ def build_hidden_report_prompt(data: dict, step_batch: list[dict[str, str]] | No
             "Scaffold dismantling hazard template when applicable:",
             "\n".join(f"- {hid}: {hazard} ({category}) cause: {cause}" for hid, category, hazard, cause in SCAFFOLD_DISMANTLING_HAZARDS) if is_scaffold_dismantling_work(data) else "Not applicable.",
             "",
+            "Approved legal / Code of Practice reference catalogue (cite legal_cop_reference ONLY from names in this controlled list; do not invent CoP titles or exact clause numbers; add 'to be verified' where a clause number is needed):",
+            "\n".join(f"- {value}" for value in LEGAL_REF_TAGS.values()) or "Use Hong Kong OSH legislation and relevant Codes of Practice; mark clause numbers to be verified.",
+            "",
+            "Project / site-specific in-house safety rules provided by the user:",
+            (
+                (data.get("site_rules", "").strip()[:2000]
+                 + "\n-> Incorporate these in-house rules into the relevant control measures. Where an in-house rule is STRICTER than the general standard, follow the in-house rule and reflect it in existing/additional controls. Note in remarks that project in-house rules apply.")
+                if data.get("site_rules", "").strip()
+                else "None provided. Note in remarks that project / site in-house safety rules (if any) shall be checked and take precedence where stricter."
+            ),
+            "",
             "Return the completed RADraft JSON only. Do not explain the report outside JSON.",
         ]
     )
@@ -1140,6 +1152,13 @@ with st.form("basic_info"):
         REPORT_LANGUAGE_OPTIONS,
         index=REPORT_LANGUAGE_OPTIONS.index(report_language) if report_language in REPORT_LANGUAGE_OPTIONS else REPORT_LANGUAGE_OPTIONS.index("English"),
     )
+    site_rules = st.text_area(
+        "Project / site-specific in-house safety rules (optional) / 項目或地盤專屬安全規則（可選）",
+        placeholder="Paste client / main contractor / site-specific safety rules here, e.g. permit system, "
+        "no-work weather triggers, specific PPE, exclusion zone standards.\n"
+        "貼上客戶／總承建商／地盤專屬安全規則，例如許可證制度、停工天氣標準、指定 PPE、禁區要求。",
+        height=110,
+    )
     method_steps = st.text_area(UI["steps"], placeholder=UI["steps_ph"], height=180)
     submitted = st.form_submit_button(UI["prepare"])
 
@@ -1218,6 +1237,7 @@ if submitted:
             "location": location_value,
             "equipment": equipment_value,
             "confined_space": confined_space,
+            "site_rules": site_rules.strip(),
             "standard": standard,
             "jurisdiction_profile": selected_profile,
             "risk_matrix": selected_matrix,
