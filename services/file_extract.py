@@ -60,6 +60,81 @@ def extract_pdf_text(raw: bytes) -> str:
     return extracted
 
 
+def _compact_text(value: str) -> str:
+    return "".join(str(value or "").split()).lower()
+
+
+# Chinese and English action verbs that mark a real physical work step.
+STEP_ACTION_TERMS = [
+    "拆", "安裝", "搭", "吊", "搬", "運", "傳", "清", "封閉", "移除", "鋪", "綁", "紮",
+    "澆", "挖", "焊", "切割", "鑽", "set up", "install", "erect", "remove", "dismantle",
+    "transport", "carry out", "lift", "hoist", "lower", "pour", "excavate", "weld",
+    "cut", "drill", "deliver", "position", "inspect",
+]
+
+# Suffixes that mark a document title or section heading when the line is short
+# and has no action verb, e.g. 拆棚施工方案 / 安全程序及措施 / 工地要求.
+_HEADING_SUFFIXES = ("方案", "方法書", "程序", "措施", "安排", "要求", "守則", "規定", "清單", "注意事項", "工序")
+
+# Lines starting with these are safety rules / control measures, not steps.
+_CONTROL_STARTERS = ("必須", "嚴禁", "不得", "切勿", "確保", "所有工人", "工人須", "工人必須", "如遇", "如有", "如因", "為免", "為防")
+
+
+def clean_extracted_steps(raw_steps: list[str], titles: list[str] | None = None, max_steps: int = 14) -> list[str]:
+    """Keep only true physical work steps; drop titles, headings and controls."""
+    title_keys = {_compact_text(title) for title in (titles or []) if title}
+    always_blocked_terms = [
+        "施工方案",
+        "methodstatement",
+        "安全程序及措施",
+        "拆棚之程序",
+        "riskassessment",
+        "tableofcontents",
+    ]
+    blocked_terms = [
+        "安全準備",
+        "準備工作",
+        "適用法例",
+        "工地要求",
+        "拆棚後安排",
+        "個人防護",
+        "ppe",
+        "訓練",
+        "permit",
+        "許可證",
+        "必須",
+        "嚴禁",
+        "如遇天氣",
+        "惡劣天氣",
+        "toolbox",
+        "工具箱",
+    ]
+    steps: list[str] = []
+    for raw in raw_steps:
+        clean = str(raw or "").strip(" \t-*0123456789.)、")
+        compact = _compact_text(clean)
+        if not clean or len(compact) < 6:
+            continue
+        if compact in title_keys or any(compact == title or compact in title for title in title_keys):
+            continue
+        if any(term in compact for term in always_blocked_terms):
+            continue
+        has_action = any(term in clean.lower() for term in STEP_ACTION_TERMS)
+        # Short heading-like lines without an action verb are titles/headings.
+        if not has_action and len(compact) <= 32 and clean.endswith(_HEADING_SUFFIXES):
+            continue
+        # Safety rules / control measures are not steps.
+        if clean.startswith(_CONTROL_STARTERS):
+            continue
+        if any(term in compact for term in blocked_terms) and not has_action:
+            continue
+        if clean not in steps:
+            steps.append(clean[:260])
+        if len(steps) >= max_steps:
+            break
+    return steps
+
+
 def infer_steps_from_ms_text(text: str, max_steps: int = 14) -> list[str]:
     def normalize_step(value: str) -> str:
         clean = re.sub(r"\s+", "", value.strip())

@@ -10,10 +10,21 @@ import pandas as pd
 import streamlit as st
 
 import services.docx_export as docx_export
-from services.ai_prompts import DISCLAIMER, MS_EXTRACTION_SYSTEM_PROMPT, RA_HIDDEN_PROMPT_CONTRACT, RA_SYSTEM_PROMPT
+from services.ai_prompts import (
+    DISCLAIMER,
+    MS_EXTRACTION_SYSTEM_PROMPT,
+    RA_HIDDEN_PROMPT_CONTRACT,
+    RA_SYSTEM_PROMPT,
+    RA_TRANSLATION_SYSTEM_PROMPT,
+)
 from services.excel_export import build_ra_excel
-from services.file_extract import extract_text_from_upload, infer_steps_from_ms_text
-from services.nvidia_client import generate_json
+from services.file_extract import clean_extracted_steps, extract_text_from_upload, infer_steps_from_ms_text
+from services.language_tools import (
+    CHINESE_LANGUAGES,
+    normalize_rows_language,
+    rows_language_mismatch_count,
+)
+from services.nvidia_client import generate_json, has_api_key
 from services.validators import MethodStatementExtraction, RADraft
 
 st.set_page_config(page_title="RA Generator", layout="wide", initial_sidebar_state="collapsed")
@@ -104,7 +115,7 @@ UI = {
     "equipment_ph": "Example: crane, drilling machine, PPE, hand tools",
     "confined": "5. Confined space involved? / 是否涉及密閉空間？",
     "standard": "Matrix version / 矩陣版本",
-    "output_language": "Report output language / ?勗?頛詨隤?",
+    "output_language": "Report output language / 報告輸出語言",
     "project": "Report title / 報告標題",
     "steps": "Copy simple construction steps here / 在此貼上簡單施工步驟",
     "steps_ph": "One step per line, for example:\n1. Set up working area\n2. Install temporary platform\n3. Carry out drilling work\n4. Clean up and demobilise",
@@ -120,7 +131,6 @@ UI = {
     "excel": "Download Excel RA Table",
 }
 
-UI["output_language"] = "Report output language / \u5831\u544a\u8f38\u51fa\u8a9e\u8a00"
 
 
 def load_json(name: str, fallback):
@@ -305,65 +315,6 @@ def _compact_text(value: str) -> str:
     return "".join(str(value or "").split()).lower()
 
 
-def clean_extracted_steps(raw_steps: list[str], titles: list[str] | None = None, max_steps: int = 14) -> list[str]:
-    title_keys = {_compact_text(title) for title in (titles or []) if title}
-    always_blocked_terms = [
-        "施工方案",
-        "methodstatement",
-        "安全程序及措施",
-        "拆棚之程序",
-    ]
-    blocked_terms = [
-        "安全準備",
-        "準備工作",
-        "適用法例",
-        "工地要求",
-        "拆棚後安排",
-        "個人防護",
-        "ppe",
-        "訓練",
-        "permit",
-        "許可證",
-        "必須",
-        "嚴禁",
-        "如遇天氣",
-        "惡劣天氣",
-    ]
-    action_terms = [
-        "拆",
-        "安裝",
-        "吊",
-        "搬",
-        "運",
-        "傳",
-        "清",
-        "set up",
-        "install",
-        "remove",
-        "dismantle",
-        "transport",
-        "carry out",
-        "inspect",
-    ]
-    steps: list[str] = []
-    for raw in raw_steps:
-        clean = str(raw or "").strip(" \t-*0123456789.)、")
-        compact = _compact_text(clean)
-        if not clean or len(compact) < 4:
-            continue
-        if compact in title_keys or any(compact == title or compact in title for title in title_keys):
-            continue
-        if any(term in compact for term in always_blocked_terms):
-            continue
-        if any(term in compact for term in blocked_terms) and not any(term in clean.lower() for term in action_terms):
-            continue
-        if clean not in steps:
-            steps.append(clean[:260])
-        if len(steps) >= max_steps:
-            break
-    return steps
-
-
 def step_records(steps: list[str]) -> list[dict[str, str]]:
     return [{"source_step_id": f"S{idx:03d}", "step_text": step} for idx, step in enumerate(steps, start=1)]
 
@@ -469,7 +420,50 @@ def local_text(data: dict, english: str) -> str:
     return english
 
 
+# Reviewed Traditional Chinese generic RA row content, keyed by RAItem fields.
+# Shared by the Chinese local fallback and the per-step coverage fallback so a
+# Chinese report never falls back to English library sentences.
+ZH_GENERIC_ITEM = {
+    "hazard": "與工序相關的高處墮下、物料墮下、通道或作業面不安全",
+    "cause_of_hazard": "工作通道、臨邊防護、物料固定或作業面狀況未按實際工地情況妥善控制",
+    "possible_consequence": "嚴重受傷或死亡；下方人士受傷；財物損壞",
+    "persons_at_risk": "工人、監督人員、分判商及附近人士",
+    "existing_control_measures": "按已批准施工方法書施工；開工前簡介；設置工作平台及通道；設置禁區及警告標誌；使用合適個人防護裝備",
+    "additional_control_measures_required": "由合資格人士檢查相關工作平台、棚架或設備；加強現場監督；按工序分段施工；保持通道及工作面整潔",
+    "legal_cop_reference": "香港職安健法例、勞工處指引及相關工作守則",
+    "permit_certificate_competent_person_required": "按工程要求進行相關訓練、工具箱講座及合資格人士檢查",
+    "inspection_monitoring_points": "開工前檢查；施工中監察；收工檢查及記錄",
+    "responsible_person": "工地監督 / 安全主任",
+    "remarks_items_to_be_confirmed": "須按實際工地情況確認危害成因及控制措施",
+}
+
+
+def _fallback_ra_zh(data: dict) -> RADraft:
+    """Chinese local fallback: fully Chinese generic row per confirmed step.
+
+    Scaffold-specific, adverse-weather and public-interface Chinese rows are
+    appended afterwards by ensure_required_ra_rows where applicable.
+    """
+    matrix = data.get("risk_matrix", {})
+    items = []
+    for record in step_records(data.get("confirmed_steps", [])):
+        items.append(
+            {
+                "source_step_id": record["source_step_id"],
+                "source_step_text_original": record["step_text"],
+                "source_step_text_translated": record["step_text"],
+                "work_step": record["step_text"],
+                "initial_risk_rating": _rating_from_matrix(matrix, 2, 5),
+                "residual_risk_rating": _rating_from_matrix(matrix, 1, 5),
+                **ZH_GENERIC_ITEM,
+            }
+        )
+    return RADraft(disclaimer=DISCLAIMER, overall_risk_level="待確認", items=items)
+
+
 def fallback_ra(data: dict) -> RADraft:
+    if data.get("report_language", "English") in CHINESE_LANGUAGES:
+        return _fallback_ra_zh(data)
     items = []
     library_records = data.get("matched_library_records", [])
     matrix = data.get("risk_matrix", {})
@@ -761,19 +755,19 @@ def ensure_required_ra_rows(data: dict, rows: list[dict[str, str]]) -> list[dict
         if chinese:
             return {
                 "Work Step": step,
-                "Hazard": "與工序相關的高處墮下、物料墮下、通道或作業面不安全",
-                "Cause of Hazard": "工作通道、臨邊防護、物料固定或作業面狀況未按實際工地情況妥善控制",
-                "Possible Consequence": "嚴重受傷或死亡；下方人士受傷；財物損壞",
-                "Persons at Risk": "工人、監督人員、分判商及附近人士",
+                "Hazard": ZH_GENERIC_ITEM["hazard"],
+                "Cause of Hazard": ZH_GENERIC_ITEM["cause_of_hazard"],
+                "Possible Consequence": ZH_GENERIC_ITEM["possible_consequence"],
+                "Persons at Risk": ZH_GENERIC_ITEM["persons_at_risk"],
                 "Initial Risk": _rating_from_matrix(matrix, 2, 5),
-                "Existing Controls": "按已批准施工方法書施工；開工前簡介；設置工作平台及通道；設置禁區及警告標誌；使用合適個人防護裝備",
-                "Additional Controls Required": "由合資格人士檢查相關工作平台、棚架或設備；加強現場監督；按工序分段施工；保持通道及工作面整潔",
+                "Existing Controls": ZH_GENERIC_ITEM["existing_control_measures"],
+                "Additional Controls Required": ZH_GENERIC_ITEM["additional_control_measures_required"],
                 "Residual Risk": _rating_from_matrix(matrix, 1, 5),
-                "Legal / CoP Reference": "香港職安健法例、勞工處指引及相關工作守則",
-                "Permit / Competent Person": "按工程要求進行高處工作訓練、工具箱講座及合資格人士檢查",
-                "Inspection / Monitoring": "開工前檢查；施工中監察；收工檢查及記錄",
-                "Responsible Person": "工地監督 / 安全主任",
-                "Remarks": "須按實際工地情況確認危害成因及控制措施",
+                "Legal / CoP Reference": ZH_GENERIC_ITEM["legal_cop_reference"],
+                "Permit / Competent Person": ZH_GENERIC_ITEM["permit_certificate_competent_person_required"],
+                "Inspection / Monitoring": ZH_GENERIC_ITEM["inspection_monitoring_points"],
+                "Responsible Person": ZH_GENERIC_ITEM["responsible_person"],
+                "Remarks": ZH_GENERIC_ITEM["remarks_items_to_be_confirmed"],
             }
         display_step = "Confirmed work step requiring risk assessment" if re.search(r"[\u4e00-\u9fff]", step) else step
         return {
@@ -897,7 +891,7 @@ def ensure_required_ra_rows(data: dict, rows: list[dict[str, str]]) -> list[dict
     return rows
 
 
-def build_hidden_report_prompt(data: dict) -> str:
+def build_hidden_report_prompt(data: dict, step_batch: list[dict[str, str]] | None = None, suppress_extra_rows: bool = False) -> str:
     matrix = data.get("risk_matrix", {}) or {}
     joined = " ".join(
         [
@@ -924,7 +918,8 @@ def build_hidden_report_prompt(data: dict) -> str:
     if not triggers:
         triggers.append("No special trigger detected: still include task-specific hazards for each confirmed work step.")
 
-    steps = "\n".join(f"{idx}. {step}" for idx, step in enumerate(data.get("confirmed_steps", []), start=1)) or "To be confirmed"
+    batch_records = step_batch if step_batch is not None else step_records(data.get("confirmed_steps", []))
+    steps = "\n".join(f"{record['source_step_id']}: {record['step_text']}" for record in batch_records) or "To be confirmed"
     band_lines = []
     for band in matrix.get("risk_bands", []):
         band_lines.append(f"- {band.get('level')}: {band.get('min')} to {band.get('max')} ({band.get('action', '')})")
@@ -947,7 +942,7 @@ def build_hidden_report_prompt(data: dict) -> str:
             steps,
             "",
             "Confirmed step records with stable IDs:",
-            json.dumps(step_records(data.get("confirmed_steps", [])), ensure_ascii=False, indent=2),
+            json.dumps(batch_records, ensure_ascii=False, indent=2),
             "",
             "Work-step quality rules:",
             "- Use only real sequential work activities as work steps.",
@@ -958,7 +953,11 @@ def build_hidden_report_prompt(data: dict) -> str:
             "- Copy the exact source_step_id into every risk item. Do not rely on translated work-step text for matching.",
             "- Do not redact normal safety terms. Permit names, permit-to-work, Form 5, competent person, PPE, CoP title and legal reference tags are allowed report text.",
             "- If a work step has multiple distinct hazards, split them into separate risk items/rows instead of placing several hazards in one hazard cell.",
-            "- Add adverse weather and public interface as separate final rows when applicable.",
+            (
+                "- This request covers a BATCH of the confirmed steps only. Cover every step listed above. Do NOT add adverse weather, public interface or other extra rows in this batch; they are handled separately."
+                if suppress_extra_rows
+                else "- Add adverse weather and public interface as separate final rows when applicable."
+            ),
             "",
             "Risk band rules from selected matrix:",
             "\n".join(band_lines) or "Use selected matrix in payload.",
@@ -972,6 +971,108 @@ def build_hidden_report_prompt(data: dict) -> str:
             "Return the completed RADraft JSON only. Do not explain the report outside JSON.",
         ]
     )
+
+
+# Steps per AI request. Batching keeps each response comfortably inside the
+# model output-token limit so long Method Statements no longer truncate the
+# JSON (which previously forced the generic local fallback).
+RA_BATCH_SIZE = 6
+RA_TRANSLATION_BATCH_SIZE = 8
+
+
+def _ai_generation_payload(data: dict, batch: list[dict[str, str]], suppress_extra_rows: bool) -> dict:
+    return {
+        **data,
+        "confirmed_steps": [record["step_text"] for record in batch],
+        "confirmed_step_records": batch,
+        "method_statement_text": data.get("method_statement_text", "")[:12000],
+        "hidden_report_prompt": build_hidden_report_prompt(data, batch, suppress_extra_rows),
+        "instruction": (
+            "Prepare a professional Risk Assessment Report according to IEC 31010 and Hong Kong safety legislation / CoP. "
+            "Use the uploaded Method Statement text, confirmed steps and matched risk library first. Do not invent exact legal clause numbers. "
+            "Use the selected jurisdiction profile and selected risk matrix. Calculate risk scores as likelihood x severity and ensure LR/MR/HR matches the selected matrix band. "
+            "The RA table must include at least one risk row for every confirmed construction step listed in confirmed_step_records. "
+            "Every item must include the correct source_step_id from confirmed_step_records. "
+            "If one confirmed step has multiple hazards, create multiple items with the same source_step_id and different hazard_id. "
+            "Write every narrative field fully in the selected report output language, including construction steps, hazards, causes, consequences, control measures, PPE/training and remarks. "
+            "Each high-risk activity must include hazards, consequences, specific controls, permit/certificate requirements, competent person requirements, inspection points and emergency response. "
+            "Follow hidden_report_prompt exactly; it is the controlling professional report specification. "
+            "Show roles only, no personal names. Output valid JSON matching the approved RA schema. "
+            f"{data.get('language_instruction', '')}"
+        ),
+    }
+
+
+def generate_ra_with_ai(data: dict) -> tuple[RADraft | None, list[str], str | None]:
+    """Generate the RA draft with NVIDIA AI, batching long step lists."""
+    records = step_records(data.get("confirmed_steps", []))
+    if len(records) <= RA_BATCH_SIZE:
+        payload = _ai_generation_payload(data, records, suppress_extra_rows=False)
+        return generate_json(RA_SYSTEM_PROMPT, payload, RADraft)
+
+    all_items: list = []
+    all_flags: list[str] = []
+    errors: list[str] = []
+    batches = [records[start : start + RA_BATCH_SIZE] for start in range(0, len(records), RA_BATCH_SIZE)]
+    progress = st.progress(0.0, text=f"Generating RA rows in {len(batches)} batches... / 分批生成風險評估列...")
+    for index, batch in enumerate(batches, start=1):
+        payload = _ai_generation_payload(data, batch, suppress_extra_rows=True)
+        draft, flags, error = generate_json(RA_SYSTEM_PROMPT, payload, RADraft)
+        all_flags.extend(flags)
+        if error:
+            errors.append(f"batch {index}: {error}")
+        if draft is not None and draft.items:
+            all_items.extend(draft.items)
+        progress.progress(index / len(batches), text=f"Batch {index}/{len(batches)} done / 已完成 {index}/{len(batches)} 批")
+    progress.empty()
+    unique_flags = list(dict.fromkeys(all_flags))
+    if not all_items:
+        return None, unique_flags, "; ".join(errors) or "ai_returned_no_items"
+    # Steps whose batch failed are covered later by ensure_required_ra_rows.
+    merged = RADraft(disclaimer=DISCLAIMER, overall_risk_level="To be confirmed", items=all_items)
+    return merged, unique_flags, None
+
+
+def _translate_draft_with_ai(draft: RADraft, language: str, instruction: str) -> RADraft | None:
+    """Translate all draft rows into the target language with the AI backend."""
+    translated_items: list = []
+    for start in range(0, len(draft.items), RA_TRANSLATION_BATCH_SIZE):
+        chunk = draft.items[start : start + RA_TRANSLATION_BATCH_SIZE]
+        payload = {
+            "target_language": language,
+            "language_instruction": instruction,
+            "ra_draft": {
+                "disclaimer": draft.disclaimer,
+                "overall_risk_level": draft.overall_risk_level,
+                "items": [item.model_dump() for item in chunk],
+            },
+        }
+        result, _flags, error = generate_json(RA_TRANSLATION_SYSTEM_PROMPT, payload, RADraft)
+        if error or result is None or len(result.items) != len(chunk):
+            return None
+        translated_items.extend(result.items)
+    return RADraft(disclaimer=draft.disclaimer, overall_risk_level=draft.overall_risk_level, items=translated_items)
+
+
+def enforce_output_language(data: dict, draft: RADraft, use_ai: bool) -> RADraft:
+    """Make sure the whole draft is in the selected report language.
+
+    1. If wrong-language rows remain and the AI backend is available, run a
+       dedicated translation pass over the draft.
+    2. Always finish with the deterministic phrase cleanup as a safety net.
+    """
+    language = data.get("report_language", "English")
+    if language not in CHINESE_LANGUAGES and language != "English":
+        return draft
+    rows = [item.model_dump() for item in draft.items]
+    if use_ai and has_api_key() and rows_language_mismatch_count(rows, language):
+        with st.spinner("Normalising report language... / 正在統一報告語言..."):
+            translated = _translate_draft_with_ai(draft, language, data.get("language_instruction", ""))
+        if translated is not None:
+            draft = translated
+            rows = [item.model_dump() for item in draft.items]
+    normalized = normalize_rows_language(rows, language)
+    return RADraft(disclaimer=draft.disclaimer, overall_risk_level=draft.overall_risk_level, items=normalized)
 
 
 report_language = render_top_toolbar()
@@ -1228,27 +1329,8 @@ if st.session_state.get("ra_stage") in {"confirm", "generated"}:
         data["use_ai_backend"] = use_ai_backend
         flags = []
         if use_ai_backend:
-            payload = {
-                **data,
-                "confirmed_step_records": step_records(confirmed_steps),
-                "method_statement_text": data.get("method_statement_text", "")[:12000],
-                "hidden_report_prompt": build_hidden_report_prompt(data),
-                "instruction": (
-                    "Prepare a professional Risk Assessment Report according to IEC 31010 and Hong Kong safety legislation / CoP. "
-                    "Use the uploaded Method Statement text, confirmed steps and matched risk library first. Do not invent exact legal clause numbers. "
-                    "Use the selected jurisdiction profile and selected risk matrix. Calculate risk scores as likelihood x severity and ensure LR/MR/HR matches the selected matrix band. "
-                    "The RA table must include at least one risk row for every confirmed construction step. "
-                    "Every item must include the correct source_step_id from confirmed_step_records. "
-                    "If one confirmed step has multiple hazards, create multiple items with the same source_step_id and different hazard_id. "
-                    "Translate all report content, including construction steps, hazards, consequences, control measures, PPE/training and residual risk remarks, into the selected report output language. "
-                    "Each high-risk activity must include hazards, consequences, specific controls, permit/certificate requirements, competent person requirements, inspection points and emergency response. "
-                    "Follow hidden_report_prompt exactly; it is the controlling professional report specification. "
-                    "Show roles only, no personal names. Output valid JSON matching the approved RA schema. "
-                    f"{data['language_instruction']}"
-                ),
-            }
             with st.spinner("Generating RA report with NVIDIA AI... / NVIDIA AI 正在生成風險評估報告，請稍候..."):
-                draft, flags, error = generate_json(RA_SYSTEM_PROMPT, payload, RADraft)
+                draft, flags, error = generate_ra_with_ai(data)
             if draft is None:
                 st.info(f"AI unavailable or output invalid; local risk-library template used. ({error})")
                 draft = fallback_ra(data)
@@ -1258,6 +1340,7 @@ if st.session_state.get("ra_stage") in {"confirm", "generated"}:
         else:
             with st.spinner("Generating local risk-library draft... / 正在使用本地風險庫生成草稿..."):
                 draft = fallback_ra(data)
+        draft = enforce_output_language(data, draft, use_ai_backend)
         st.session_state["ra_input"] = data
         st.session_state["ra_draft"] = draft.model_dump()
         st.session_state["ra_stage"] = "generated"
@@ -1270,6 +1353,7 @@ if st.session_state.get("ra_stage") == "generated" and "ra_draft" in st.session_
     data = st.session_state["ra_input"]
     draft = RADraft.model_validate(st.session_state["ra_draft"])
     rows = ensure_required_ra_rows(data, ra_rows(draft))
+    rows = normalize_rows_language(rows, data.get("report_language", "English"))
     checker = quality_check_ra(data, rows)
     if checker["result"] == "PASS FOR SO REVIEW":
         st.success("RA Quality Checker: PASS FOR SO REVIEW")

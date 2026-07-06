@@ -13,6 +13,13 @@ from docx.oxml.ns import qn
 from docx.shared import Inches, Pt, RGBColor
 
 from services.ai_prompts import DISCLAIMER
+from services.language_tools import en_term_cleanup as _shared_en_cleanup
+from services.language_tools import zh_term_cleanup as _shared_zh_cleanup
+
+# East Asian font applied to every run so Chinese text renders consistently
+# instead of falling back to a default serif font.
+EAST_ASIAN_FONT = "Microsoft JhengHei"
+LATIN_FONT = "Calibri"
 
 LABELS = {
     "English": {
@@ -415,6 +422,19 @@ def _set_cell_margins(cell, margin: int = 35) -> None:
         element.set(qn("w:type"), "dxa")
 
 
+def _apply_fonts(run) -> None:
+    """Set Latin + East Asian fonts so Chinese renders in a clean sans-serif."""
+    run.font.name = LATIN_FONT
+    rpr = run._element.get_or_add_rPr()
+    rfonts = rpr.find(qn("w:rFonts"))
+    if rfonts is None:
+        rfonts = OxmlElement("w:rFonts")
+        rpr.append(rfonts)
+    rfonts.set(qn("w:ascii"), LATIN_FONT)
+    rfonts.set(qn("w:hAnsi"), LATIN_FONT)
+    rfonts.set(qn("w:eastAsia"), EAST_ASIAN_FONT)
+
+
 def _set_cell_text(cell, text: Any, bold: bool = False, size: float = 10.0, align: int | None = None) -> None:
     cell.text = ""
     paragraph = cell.paragraphs[0]
@@ -422,110 +442,19 @@ def _set_cell_text(cell, text: Any, bold: bool = False, size: float = 10.0, alig
     paragraph.paragraph_format.line_spacing = 1.0
     if align is not None:
         paragraph.alignment = align
-    run = paragraph.add_run(str(text or "-"))
+    # Empty string stays blank (e.g. colour swatch cells); None renders "-".
+    run = paragraph.add_run("" if text == "" else str(text if text is not None else "-"))
     run.bold = bold
-    run.font.name = "Calibri"
+    _apply_fonts(run)
     run.font.size = Pt(size)
 
 
 def _zh_term_cleanup(text: Any) -> str:
-    value = str(text or "")
-    replacements = {
-        "Inspect access equipment and work platform": "\u6aa2\u67e5\u901a\u9053\u8a2d\u5099\u53ca\u5de5\u4f5c\u5e73\u53f0",
-        "Set up exclusion zone below work area": "\u5728\u5de5\u4f5c\u5340\u4e0b\u65b9\u8a2d\u7f6e\u7981\u5340",
-        "Access the work location": "\u524d\u5f80\u5de5\u4f5c\u4f4d\u7f6e",
-        "Carry out work at height": "\u9032\u884c\u9ad8\u8655\u5de5\u4f5c",
-        "Remove tools/materials and close out inspection": "\u79fb\u8d70\u5de5\u5177 / \u7269\u6599\u53ca\u5b8c\u6210\u6536\u5de5\u6aa2\u67e5",
-        "Fall from height": "\u9ad8\u8655\u589c\u4e0b",
-        "Fall of Person from height": "\u4eba\u54e1\u9ad8\u8655\u589c\u4e0b",
-        "Falling objects": "\u9ad8\u7a7a\u589c\u7269",
-        "Platform collapse": "\u5e73\u53f0\u5012\u584c",
-        "Unsafe access": "\u901a\u9053\u4e0d\u5b89\u5168",
-        "Weather effect": "\u5929\u6c23\u5f71\u97ff",
-        "Adverse weather": "\u60e1\u52a3\u5929\u6c23",
-        "Typhoon or Heavy Rainstorm": "\u98b1\u98a8\u6216\u66b4\u96e8",
-        "Serious injury": "\u56b4\u91cd\u53d7\u50b7",
-        "Fatality": "\u6b7b\u4ea1",
-        "Fatality / Serious Injury": "\u6b7b\u4ea1 / \u56b4\u91cd\u53d7\u50b7",
-        "Injury to persons below": "\u4e0b\u65b9\u4eba\u58eb\u53d7\u50b7",
-        "Property damage": "\u8ca1\u7269\u640d\u58de",
-        "Workers, supervisors, subcontractors and persons nearby": "\u5de5\u4eba\u3001\u76e3\u7763\u4eba\u54e1\u3001\u5206\u5224\u5546\u53ca\u9644\u8fd1\u4eba\u58eb",
-        "Workers, supervisors, subcontractors and persons nearby": "\u5de5\u4eba\u3001\u76e3\u7763\u4eba\u54e1\u3001\u5206\u5224\u5546\u53ca\u9644\u8fd1\u4eba\u58eb",
-        "Workers, supervisors, subcontractors and persons nearby": "\u5de5\u4eba\u3001\u76e3\u7763\u4eba\u54e1\u3001\u5206\u5224\u5546\u53ca\u9644\u8fd1\u4eba\u58eb",
-        "Workers, supervisors, subcontractors and persons nearby": "\u5de5\u4eba\u3001\u76e3\u7763\u4eba\u54e1\u3001\u5206\u5224\u5546\u53ca\u9644\u8fd1\u4eba\u58eb",
-        "Workers and persons nearby": "\u5de5\u4eba\u53ca\u9644\u8fd1\u4eba\u58eb",
-        "Workers and public": "\u5de5\u4eba\u53ca\u516c\u773e",
-        "People at area": "\u5de5\u4f5c\u5340\u5167\u4eba\u58eb",
-        "People at the area": "\u5de5\u4f5c\u5340\u5167\u4eba\u58eb",
-        "Members of public": "\u516c\u773e",
-        "persons nearby": "\u9644\u8fd1\u4eba\u58eb",
-        "subcontractors": "\u5206\u5224\u5546",
-        "supervisors": "\u76e3\u7763\u4eba\u54e1",
-        "and persons nearby": "\u53ca\u9644\u8fd1\u4eba\u58eb",
-        "Unsafe condition, unsafe act or failure mode associated with the confirmed work step": "\u8207\u5df2\u78ba\u8a8d\u5de5\u5e8f\u76f8\u95dc\u7684\u4e0d\u5b89\u5168\u72c0\u6cc1\u3001\u4e0d\u5b89\u5168\u884c\u70ba\u6216\u5931\u6548\u6a21\u5f0f",
-        "Unsafe condition, unsafe act or failure mode": "\u4e0d\u5b89\u5168\u72c0\u6cc1\u3001\u4e0d\u5b89\u5168\u884c\u70ba\u6216\u5931\u6548\u6a21\u5f0f",
-        "Lack of safety awareness": "\u5b89\u5168\u610f\u8b58\u4e0d\u8db3",
-        "Working area not fenced off": "\u5de5\u4f5c\u5340\u672a\u9069\u7576\u570d\u5c01",
-        "Workers not trained for the task": "\u5de5\u4eba\u672a\u63a5\u53d7\u76f8\u95dc\u5de5\u5e8f\u8a13\u7df4",
-        "No proper access": "\u672a\u63d0\u4f9b\u9069\u7576\u901a\u9053",
-        "No fixed anchoring point provided": "\u672a\u63d0\u4f9b\u56fa\u5b9a\u9328\u56fa\u9ede",
-        "No safety harness worn": "\u672a\u4f69\u6234\u5b89\u5168\u5e36",
-        "Confirm with approved Method Statement and site-specific conditions": "\u6839\u64da\u5df2\u6279\u51c6\u65bd\u5de5\u65b9\u6cd5\u66f8\u53ca\u5de5\u5730\u5be6\u969b\u60c5\u6cc1\u78ba\u8a8d",
-        "Confirm method statement, competent person requirement, permit-to-work, inspection points and emergency arrangement before work starts": "\u958b\u5de5\u524d\u78ba\u8a8d\u65bd\u5de5\u65b9\u6cd5\u66f8\u3001\u5408\u8cc7\u683c\u4eba\u58eb\u8981\u6c42\u3001\u5de5\u4f5c\u8a31\u53ef\u8b49\u3001\u6aa2\u67e5\u9ede\u53ca\u7dca\u6025\u5b89\u6392",
-        "Provide safe working platform": "\u63d0\u4f9b\u5b89\u5168\u5de5\u4f5c\u5e73\u53f0",
-        "Guardrails and toe boards where applicable": "\u6309\u9700\u8981\u8a2d\u7f6e\u8b77\u6b04\u53ca\u8e22\u8173\u677f",
-        "Fall arrest system and independent lifeline where required": "\u6309\u9700\u8981\u4f7f\u7528\u9632\u589c\u7cfb\u7d71\u53ca\u7368\u7acb\u6551\u751f\u7e69",
-        "Inspect access equipment before use": "\u4f7f\u7528\u524d\u6aa2\u67e5\u901a\u9053\u53ca\u5de5\u4f5c\u8a2d\u5099",
-        "Set exclusion zone below work area": "\u5728\u5de5\u4f5c\u5340\u4e0b\u65b9\u8a2d\u7f6e\u7981\u5340",
-        "Secure tools and materials against falling": "\u56fa\u5b9a\u5de5\u5177\u53ca\u7269\u6599\u9632\u6b62\u589c\u4e0b",
-        "Ensure all tools and materials are secured against falling": "\u78ba\u4fdd\u6240\u6709\u5de5\u5177\u53ca\u7269\u6599\u5df2\u56fa\u5b9a\u9632\u6b62\u589c\u4e0b",
-        "Fence off the working area": "\u570d\u5c01\u5de5\u4f5c\u5340",
-        "Provide appropriate working platform": "\u63d0\u4f9b\u9069\u7576\u5de5\u4f5c\u5e73\u53f0",
-        "Workers shall wear full body harness": "\u5de5\u4eba\u9808\u4f69\u6234\u5168\u8eab\u5f0f\u5b89\u5168\u5e36",
-        "Competent person has to inspect working platform": "\u5408\u8cc7\u683c\u4eba\u58eb\u9808\u6aa2\u67e5\u5de5\u4f5c\u5e73\u53f0",
-        "Confirm rescue arrangement for fall arrest": "\u78ba\u8a8d\u9632\u589c\u6551\u63f4\u5b89\u6392",
-        "Provide competent supervision": "\u63d0\u4f9b\u5408\u8cc7\u683c\u76e3\u7763",
-        "Working at height permit where required by site system": "\u6309\u5de5\u5730\u5236\u5ea6\u9700\u8981\u8fa6\u7406\u9ad8\u8655\u5de5\u4f5c\u8a31\u53ef",
-        "Competent person for scaffold / platform inspection where applicable": "\u6309\u9700\u8981\u7531\u5408\u8cc7\u683c\u4eba\u58eb\u6aa2\u67e5\u68da\u67b6 / \u5de5\u4f5c\u5e73\u53f0",
-        "Induction Training / Toolbox Talk / FCB / Zero Harm Lesson": "\u5165\u8077\u8a13\u7df4 / \u5de5\u5177\u7bb1\u6703\u8b70 / \u73fe\u5834\u63a7\u5236\u7c21\u4ecb / \u96f6\u50b7\u5bb3\u8ab2\u7a0b",
-        "Field control briefing": "\u73fe\u5834\u63a7\u5236\u7c21\u4ecb",
-        "Safety gloves": "\u5b89\u5168\u624b\u5957",
-        "Safety helmet": "\u5b89\u5168\u5e3d",
-        "safety helmet": "\u5b89\u5168\u5e3d",
-        "Pre-work briefing": "\u958b\u5de5\u524d\u7c21\u4ecb",
-        "Supervisor control": "\u76e3\u7763\u4eba\u54e1\u63a7\u5236",
-        "Suitable PPE": "\u5408\u9069\u500b\u4eba\u9632\u8b77\u88dd\u5099",
-        "Access control": "\u51fa\u5165\u7ba1\u5236",
-        "Housekeeping": "\u5de5\u5730\u6574\u6f54",
-        "To be confirmed": "\u5f85\u78ba\u8a8d",
-        "To be verified by Safety Officer": "\u7531\u5b89\u5168\u4e3b\u4efb\u6838\u5be6",
-        "Site Supervisor / Safety Officer": "\u5de5\u5730\u76e3\u7763 / \u5b89\u5168\u4e3b\u4efb",
-        "Induction / task briefing / suitable PPE": "\u5165\u8077\u8a13\u7df4 / \u5de5\u5e8f\u7c21\u4ecb / \u5408\u9069\u500b\u4eba\u9632\u8b77\u88dd\u5099",
-        "Workers / others nearby": "\u5de5\u4eba / \u9644\u8fd1\u5176\u4ed6\u4eba\u58eb",
-        "Workers": "\u5de5\u4eba",
-        "Supervisors": "\u76e3\u7763\u4eba\u54e1",
-        "Subcontractors": "\u5206\u5224\u5546",
-        "Site Supervisor / Safety Officer": "\u5de5\u5730\u76e3\u7763 / \u5b89\u5168\u4e3b\u4efb",
-        "To be verified by Safety Officer": "\u7531\u5b89\u5168\u4e3b\u4efb\u6838\u5be6",
-        "Hong Kong OSH legislation": "\u9999\u6e2f\u8077\u5b89\u5065\u6cd5\u4f8b",
-        "Labour Department guidance": "\u52de\u5de5\u8655\u6307\u5f15",
-    }
-    for source, target in replacements.items():
-        value = value.replace(source, target)
-    return value
+    return _shared_zh_cleanup(text)
 
 
 def _en_term_cleanup(text: Any) -> str:
-    value = str(text or "")
-    if re.search(r"[\u4e00-\u9fff]", value):
-        scaffold_tokens = ["拆棚", "棚架", "尼龍網", "鋅鐵", "帆布", "橫杆", "竹杆", "竹枝"]
-        if any(token in value for token in scaffold_tokens):
-            return "Dismantle scaffold bay: remove nylon net, metal sheets or canvas first; then remove ledgers and supporting bamboo members."
-        if "惡劣天氣" in value or "暴雨" in value or "颱風" in value:
-            return "Adverse weather control for outdoor works."
-        if "公眾" in value:
-            return "Public interface control for persons nearby."
-    return value
+    return _shared_en_cleanup(text)
 
 
 def _display_text(text: Any, language: str) -> str:
@@ -670,7 +599,7 @@ def _add_heading(doc: Document, text: str, level: int = 1) -> None:
     paragraph.paragraph_format.space_after = Pt(4)
     run = paragraph.add_run(text)
     run.bold = True
-    run.font.name = "Calibri"
+    _apply_fonts(run)
     run.font.size = Pt(15 if level > 1 else 18)
     run.font.color.rgb = RGBColor(31, 77, 120) if level > 1 else RGBColor(11, 37, 69)
 
@@ -727,19 +656,19 @@ def _risk_score_tables(doc: Document, matrix: dict[str, Any], language: str = "E
             sev_label = str(sev.get("label_en", ""))
             if language in {"Traditional Chinese", "Simplified Chinese"}:
                 sev_label = severity_zh.get(sev_label, sev_label)
-            _set_cell_text(grid.cell(1, col), str(sev.get("score", "")), bold=True, size=9)
-            _set_cell_text(grid.cell(2, col), sev_label, bold=True, size=8.5)
+            _set_cell_text(grid.cell(1, col), str(sev.get("score", "")), bold=True, size=10)
+            _set_cell_text(grid.cell(2, col), sev_label, bold=True, size=9.5)
             _set_cell_shading(grid.cell(1, col), "FFF44F")
             _set_cell_shading(grid.cell(2, col), "FFF44F")
         _set_cell_text(grid.cell(2, 0), "", size=7)
         _set_cell_text(grid.cell(2, 1), "", size=7)
         for row, like in enumerate(reversed(likelihood), start=3):
             like_score = int(like.get("score", 1))
-            _set_cell_text(grid.cell(row, 0), like_score, bold=True, size=9)
+            _set_cell_text(grid.cell(row, 0), like_score, bold=True, size=10)
             like_label = str(like.get("label_en", ""))
             if language in {"Traditional Chinese", "Simplified Chinese"}:
                 like_label = likelihood_zh.get(like_label, like_label)
-            _set_cell_text(grid.cell(row, 1), f"{like.get('code', '')} - {like_label}", size=8.5)
+            _set_cell_text(grid.cell(row, 1), f"{like.get('code', '')} - {like_label}", size=9.5)
             for col, sev in enumerate(severity, start=2):
                 score = like_score * int(sev.get("score", 1))
                 cell = grid.cell(row, col)
@@ -752,14 +681,14 @@ def _risk_score_tables(doc: Document, matrix: dict[str, Any], language: str = "E
         if language in {"Traditional Chinese", "Simplified Chinese"}:
             guide_headers = ["\u984f\u8272", "\u98a8\u96aa\u6307\u6578", "\u53ef\u5bb9\u5fcd\u689d\u4ef6"]
         for idx, header in enumerate(guide_headers):
-            _set_cell_text(guide.rows[0].cells[idx], header, bold=True, size=9)
+            _set_cell_text(guide.rows[0].cells[idx], header, bold=True, size=10)
         guide_rows = static.get("risk_guide_rows", [])
         for fill, label, action in guide_rows:
             cells = guide.add_row().cells
-            _set_cell_text(cells[0], "", size=9)
+            _set_cell_text(cells[0], "", size=10)
             _set_cell_shading(cells[0], fill)
-            _set_cell_text(cells[1], label, size=9)
-            _set_cell_text(cells[2], action, size=9)
+            _set_cell_text(cells[1], label, size=10)
+            _set_cell_text(cells[2], action, size=10)
         _style_table(guide, header_fill="F2F4F7")
         _set_table_widths(guide, [1.0, 1.6, 6.4])
         return
@@ -795,8 +724,17 @@ def build_ra_docx(report: dict[str, Any], ra_rows: list[dict[str, Any]], matrix:
     section.right_margin = Inches(0.4)
 
     styles = doc.styles
-    styles["Normal"].font.name = "Calibri"
+    styles["Normal"].font.name = LATIN_FONT
     styles["Normal"].font.size = Pt(11)
+    # Document-level East Asian font so body paragraphs render Chinese cleanly.
+    style_rpr = styles["Normal"].element.get_or_add_rPr()
+    style_rfonts = style_rpr.find(qn("w:rFonts"))
+    if style_rfonts is None:
+        style_rfonts = OxmlElement("w:rFonts")
+        style_rpr.append(style_rfonts)
+    style_rfonts.set(qn("w:ascii"), LATIN_FONT)
+    style_rfonts.set(qn("w:hAnsi"), LATIN_FONT)
+    style_rfonts.set(qn("w:eastAsia"), EAST_ASIAN_FONT)
 
     title = doc.add_paragraph()
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
