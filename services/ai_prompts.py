@@ -29,6 +29,13 @@ Example of a TRUE work step: "先拆斜棚，其中先拆除尼龍網/鋅鐵片/
 Example of a NON-step (title): "拆棚施工方案" -> document_title.
 Example of a NON-step (heading/control): "安全程序及措施" -> rejected_headings_or_controls.
 
+Also extract the following supporting details WHERE STATED in the document (leave empty if not stated; do not guess):
+- plant_equipment: plant, equipment, tools and materials mentioned.
+- workforce_trades: number of workers, trades and competency/certification mentioned (e.g. trained scaffolders, competent person).
+- working_height_environment: working height, location and environment (e.g. external wall, above 2m, near public road).
+- duration_time_of_work: duration, dates, day/night work if stated.
+- existing_safety_provisions: safety control measures the document itself specifies (each as one list entry, original wording).
+
 Keep every work step in its original language and original wording. Preserve the original document order of the steps."""
 
 RA_HIDDEN_PROMPT_CONTRACT = """
@@ -97,6 +104,32 @@ Quality rules:
 - Do not redact normal safety terms such as permit names, permit-to-work, Form 5, competent person, PPE, CoP titles or legal reference tags.
 - Use numbered-style content within fields where multiple points are needed.
 - Include "Minimum acceptable residual risk: MR or below" or equivalent wording in remarks where relevant.
+
+Method Statement controls assessment:
+- Where the Method Statement text already specifies control measures, incorporate them into existing_control_measures for the matching step and assess whether they are adequate under the hierarchy of controls.
+- Flag gaps in remarks_items_to_be_confirmed, e.g. "Method statement relies on PPE only for this step - recommend adding engineering control".
+
+Supporting sections (fill these RADraft fields when include_supporting_sections is true; write them in the selected report language):
+1. ppe_by_trade: PPE listed BY WORK STEP or TRADE, not one generic list. One entry per role/trade, state the standard where applicable. Example format: "搭棚工人 (scaffolder): 全身式安全帶連雙掛鈎 (full body harness with double lanyard); 安全帽 (EN 397)". PPE remains the last layer of control.
+2. permits_checklist: separate into TWO categories and never mix them.
+   Category "Statutory" (法定文件) - required by Hong Kong legislation, cite the form and legal basis and WHO signs:
+   - Form 5 scaffold inspection report (Cap. 59I, by competent person, every 14 days and after adverse weather)
+   - LALG test/examination certificates for lifting appliances and lifting gear (Cap. 59J) where lifting is involved
+   - Confined space risk assessment by competent person and certificate before entry (Cap. 59AE), certified workers only
+   - Suspended working platform forms where applicable; operator certification (crane operator, signaller training records)
+   Category "In-house" (公司內部工作許可證) - company SMS permits: hot work permit, lifting operation permit / lifting plan, working at height permit, excavation permit, night work permit. For each give issuing authority (e.g. Safety Officer / Site Agent), validity period and closure requirement.
+   If a permit could be either category, place it under "In-house" and add "subject to company SMS requirements".
+3. emergency_arrangements: must be TASK-SPECIFIC, not generic:
+   - foreseeable_scenarios: emergencies foreseeable for THIS task (e.g. fall arrest suspension, scaffold collapse, struck by falling bamboo, heat stroke).
+   - rescue_plan: for work at height state rescue method, rescue equipment (rescue kit / descent device), suspension trauma time concern, and who is trained to perform the rescue. "Call 999" alone is NOT an acceptable rescue plan.
+   - first_aid: first aiders required for the site headcount and first aid box location (Cap. 59 first aid requirements).
+   - emergency_contacts: roles to contact (site management, safety officer, nearest A&E hospital) - roles only, no personal names or phone numbers.
+   - assembly_point: assembly and headcount procedure.
+   - adverse_weather_arrangements: typhoon / rainstorm arrangements, securing the scaffold/crane, work suspension criteria (e.g. wind limit for lifting, T8 signal procedure).
+4. training_records: one row per role, mapping to required training/certificates:
+   - Include Green Card (mandatory basic safety training, Cap. 59) for all workers; trade-specific certificates (bamboo scaffolder training, crane operator, signaller, confined space certified worker) as applicable; toolbox talk / method statement briefing with attendance record.
+   - Fill legal_basis, expiry_renewal and record_location; flag that no worker may be assigned without the corresponding record.
+5. inspection_schedule: one row per monitoring item. Every row MUST state a concrete frequency, a responsible post (by_whom) and a record/form - "regular inspection" without frequency is not acceptable. Include statutory inspections with legal frequency (e.g. scaffold Form 5 every 14 days and after adverse weather), daily pre-use checks, safety officer/supervisor walk frequency, toolbox talk frequency, and RA review triggers (change of method/conditions, after incident, periodic review date).
 """
 
 RA_TRANSLATION_SYSTEM_PROMPT = """You are a professional Hong Kong construction safety translator. You will receive an RADraft JSON and a target report language. Return the SAME RADraft JSON structure with every narrative field rewritten fully in the target language.

@@ -28,3 +28,27 @@ def test_ra_schema_accepts_required_table_items():
     )
     assert draft.items[0].hazard == "Fall from height"
 
+
+
+def test_ra_schema_supporting_sections_and_null_tolerance():
+    draft = RADraft.model_validate(
+        {
+            "disclaimer": DISCLAIMER,
+            "items": [{"work_step": "Erect scaffold"}],
+            "ppe_by_trade": ["scaffolder: full body harness (EN 361)", None],
+            "permits_checklist": [
+                {"permit_or_form": "Form 5", "category": "Statutory", "status": None},
+            ],
+            "emergency_arrangements": {"rescue_plan": "trained rescuer with rescue kit", "foreseeable_scenarios": None},
+            "training_records": None,
+            "inspection_schedule": [{"item": "Scaffold inspection", "frequency": "every 14 days", "by_whom": "Competent Person", "record_form": "Form 5"}],
+        }
+    )
+    assert draft.ppe_by_trade == ["scaffolder: full body harness (EN 361)"]
+    assert draft.permits_checklist[0].status == "To be confirmed"
+    assert draft.emergency_arrangements.rescue_plan.startswith("trained")
+    assert draft.training_records == []
+    assert draft.inspection_schedule[0].frequency == "every 14 days"
+    # old drafts without the new fields still validate
+    old = RADraft.model_validate({"disclaimer": DISCLAIMER, "items": []})
+    assert old.permits_checklist == [] and old.emergency_arrangements is None

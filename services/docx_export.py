@@ -32,8 +32,12 @@ LABELS = {
         "matrix": "4.0 Risk Matrix",
         "ra_table": "5.0 Hazard Identification & Risk Assessment Table",
         "ppe": "6.0 PPE Requirements",
-        "checklist": "7.0 Mandatory Pre-start Checklist",
-        "approval": "8.0 Approval / Acknowledgement",
+        "permits": "7.0 Permits & Statutory Documentation",
+        "emergency": "8.0 Emergency Arrangements",
+        "training": "9.0 Training & Competency Records",
+        "monitoring": "10.0 Monitoring & Inspection Schedule",
+        "checklist": "11.0 Mandatory Pre-start Checklist",
+        "approval": "12.0 Approval / Acknowledgement",
         "item": "Item",
         "job_task": "Job Task",
         "hazard": "Hazard",
@@ -63,8 +67,12 @@ LABELS = {
         "matrix": "4.0 風險矩陣",
         "ra_table": "5.0 危害識別及風險評估表",
         "ppe": "6.0 個人防護裝備要求",
-        "checklist": "7.0 開工前必要檢查清單",
-        "approval": "8.0 批核 / 確認",
+        "permits": "7.0 許可證及法定文件",
+        "emergency": "8.0 應急安排",
+        "training": "9.0 訓練及資格紀錄",
+        "monitoring": "10.0 監察及巡查時間表",
+        "checklist": "11.0 開工前必要檢查清單",
+        "approval": "12.0 批核 / 確認",
         "item": "項目",
         "job_task": "工作工序",
         "hazard": "危害",
@@ -94,8 +102,12 @@ LABELS = {
         "matrix": "4.0 风险矩阵",
         "ra_table": "5.0 危害识别及风险评估表",
         "ppe": "6.0 个人防护装备要求",
-        "checklist": "7.0 开工前必要检查清单",
-        "approval": "8.0 批核 / 确认",
+        "permits": "7.0 许可证及法定文件",
+        "emergency": "8.0 应急安排",
+        "training": "9.0 训练及资格纪录",
+        "monitoring": "10.0 监察及巡查时间表",
+        "checklist": "11.0 开工前必要检查清单",
+        "approval": "12.0 批核 / 确认",
         "item": "项目",
         "job_task": "工作工序",
         "hazard": "危害",
@@ -236,9 +248,13 @@ SAFE_LABELS = {
         "requirements": "3.0 \u9069\u7528\u6cd5\u4f8b / \u5de5\u5730\u8981\u6c42",
         "matrix": "4.0 \u98a8\u96aa\u77e9\u9663",
         "ra_table": "5.0 \u5371\u5bb3\u8b58\u5225\u53ca\u98a8\u96aa\u8a55\u4f30\u8868",
-        "ppe": "6.0 \u500b\u4eba\u9632\u8b77\u88dd\u5099\u8981\u6c42",
-        "checklist": "7.0 \u958b\u5de5\u524d\u5fc5\u8981\u6aa2\u67e5\u6e05\u55ae",
-        "approval": "8.0 \u6279\u6838 / \u78ba\u8a8d",
+        "ppe": "6.0 個人防護裝備要求",
+        "permits": "7.0 許可證及法定文件",
+        "emergency": "8.0 應急安排",
+        "training": "9.0 訓練及資格紀錄",
+        "monitoring": "10.0 監察及巡查時間表",
+        "checklist": "11.0 開工前必要檢查清單",
+        "approval": "12.0 批核 / 確認",
         "item": "\u9805\u76ee",
         "job_task": "\u5de5\u4f5c\u5de5\u5e8f",
         "hazard": "\u5371\u5bb3",
@@ -265,9 +281,13 @@ SAFE_LABELS = {
         "requirements": "3.0 \u9002\u7528\u6cd5\u89c4 / \u5de5\u5730\u8981\u6c42",
         "matrix": "4.0 \u98ce\u9669\u77e9\u9635",
         "ra_table": "5.0 \u5371\u5bb3\u8bc6\u522b\u53ca\u98ce\u9669\u8bc4\u4f30\u8868",
-        "ppe": "6.0 \u4e2a\u4eba\u9632\u62a4\u88c5\u5907\u8981\u6c42",
-        "checklist": "7.0 \u5f00\u5de5\u524d\u5fc5\u8981\u68c0\u67e5\u6e05\u5355",
-        "approval": "8.0 \u6279\u6838 / \u786e\u8ba4",
+        "ppe": "6.0 个人防护装备要求",
+        "permits": "7.0 许可证及法定文件",
+        "emergency": "8.0 应急安排",
+        "training": "9.0 训练及资格纪录",
+        "monitoring": "10.0 监察及巡查时间表",
+        "checklist": "11.0 开工前必要检查清单",
+        "approval": "12.0 批核 / 确认",
         "item": "\u9879\u76ee",
         "job_task": "\u5de5\u4f5c\u5de5\u5e8f",
         "hazard": "\u5371\u5bb3",
@@ -735,7 +755,119 @@ def _combined_controls(row: dict[str, Any]) -> str:
     return "\n".join(parts) or "-"
 
 
-def build_ra_docx(report: dict[str, Any], ra_rows: list[dict[str, Any]], matrix: dict[str, Any] | None = None) -> BytesIO:
+_SECTION_TABLE_HEADERS = {
+    "permits": {
+        "English": ["Permit / Form", "Category", "Legal basis / SMS ref", "Issued by", "Validity", "Status"],
+        "Traditional Chinese": ["許可證 / 表格", "類別", "法律依據 / 制度參考", "簽發人", "有效期", "狀態"],
+        "Simplified Chinese": ["许可证 / 表格", "类别", "法律依据 / 制度参考", "签发人", "有效期", "状态"],
+    },
+    "training": {
+        "English": ["Role", "Required training / certificate", "Legal basis", "Expiry / renewal", "Record location"],
+        "Traditional Chinese": ["角色", "所需訓練 / 證書", "法律依據", "到期 / 續期", "紀錄存放"],
+        "Simplified Chinese": ["角色", "所需培训 / 证书", "法律依据", "到期 / 续期", "纪录存放"],
+    },
+    "monitoring": {
+        "English": ["Item", "Frequency", "By whom", "Record / form"],
+        "Traditional Chinese": ["項目", "頻率", "負責人", "紀錄 / 表格"],
+        "Simplified Chinese": ["项目", "频率", "负责人", "纪录 / 表格"],
+    },
+}
+
+_EMERGENCY_FIELD_LABELS = {
+    "English": {
+        "foreseeable_scenarios": "Foreseeable emergency scenarios",
+        "rescue_plan": "Rescue plan",
+        "first_aid": "First aid",
+        "emergency_contacts": "Emergency contacts",
+        "assembly_point": "Assembly point",
+        "adverse_weather_arrangements": "Typhoon / rainstorm arrangements",
+    },
+    "Traditional Chinese": {
+        "foreseeable_scenarios": "可預見緊急情況",
+        "rescue_plan": "救援計劃",
+        "first_aid": "急救安排",
+        "emergency_contacts": "緊急聯絡",
+        "assembly_point": "集合點",
+        "adverse_weather_arrangements": "颱風 / 暴雨安排",
+    },
+    "Simplified Chinese": {
+        "foreseeable_scenarios": "可预见紧急情况",
+        "rescue_plan": "救援计划",
+        "first_aid": "急救安排",
+        "emergency_contacts": "紧急联络",
+        "assembly_point": "集合点",
+        "adverse_weather_arrangements": "台风 / 暴雨安排",
+    },
+}
+
+
+def _section_headers(kind: str, language: str) -> list[str]:
+    table = _SECTION_TABLE_HEADERS[kind]
+    return table.get(language, table["English"])
+
+
+def _add_section_table(doc: Document, kind: str, language: str, rows: list[dict[str, Any]], field_order: list[str], widths: list[float]) -> None:
+    headers = _section_headers(kind, language)
+    table = doc.add_table(rows=1 + len(rows), cols=len(headers))
+    for idx, header in enumerate(headers):
+        _set_cell_text(table.rows[0].cells[idx], header, bold=True, size=10.0, align=WD_ALIGN_PARAGRAPH.CENTER)
+    for row_index, row in enumerate(rows, start=1):
+        cells = table.rows[row_index].cells
+        for idx, field in enumerate(field_order):
+            _set_cell_text(cells[idx], row.get(field, ""), size=10.0)
+    _style_table(table, header_fill="E8EEF5")
+    _set_table_widths(table, widths)
+
+
+def _add_supporting_sections(doc: Document, lbl: dict[str, str], language: str, sections: dict[str, Any]) -> None:
+    permits = sections.get("permits_checklist") or []
+    if permits:
+        _add_heading(doc, lbl["permits"], level=2)
+        _add_section_table(
+            doc, "permits", language, permits,
+            ["permit_or_form", "category", "legal_basis_or_sms_ref", "issued_by", "validity", "status"],
+            [3.0, 1.3, 3.4, 1.8, 1.5, 1.5],
+        )
+    emergency = sections.get("emergency_arrangements") or {}
+    if any(emergency.get(key) for key in _EMERGENCY_FIELD_LABELS["English"]):
+        _add_heading(doc, lbl["emergency"], level=2)
+        field_labels = _EMERGENCY_FIELD_LABELS.get(language, _EMERGENCY_FIELD_LABELS["English"])
+        scenarios = emergency.get("foreseeable_scenarios") or []
+        if scenarios:
+            para = doc.add_paragraph()
+            run = para.add_run(field_labels["foreseeable_scenarios"] + ":")
+            run.bold = True
+            _apply_fonts(run)
+            for scenario in scenarios:
+                doc.add_paragraph(str(scenario), style="List Bullet")
+        for key in ("rescue_plan", "first_aid", "emergency_contacts", "assembly_point", "adverse_weather_arrangements"):
+            value = emergency.get(key)
+            if value:
+                para = doc.add_paragraph()
+                run = para.add_run(field_labels[key] + ": ")
+                run.bold = True
+                _apply_fonts(run)
+                value_run = para.add_run(str(value))
+                _apply_fonts(value_run)
+    training = sections.get("training_records") or []
+    if training:
+        _add_heading(doc, lbl["training"], level=2)
+        _add_section_table(
+            doc, "training", language, training,
+            ["role", "required_training_certificate", "legal_basis", "expiry_renewal", "record_location"],
+            [2.2, 4.2, 3.0, 1.6, 1.5],
+        )
+    schedule = sections.get("inspection_schedule") or []
+    if schedule:
+        _add_heading(doc, lbl["monitoring"], level=2)
+        _add_section_table(
+            doc, "monitoring", language, schedule,
+            ["item", "frequency", "by_whom", "record_form"],
+            [4.6, 2.4, 2.5, 3.0],
+        )
+
+
+def build_ra_docx(report: dict[str, Any], ra_rows: list[dict[str, Any]], matrix: dict[str, Any] | None = None, sections: dict[str, Any] | None = None) -> BytesIO:
     language = str(report.get("Report Language", "English"))
     lbl = _labels(language)
     static = _static(language)
@@ -900,10 +1032,16 @@ def build_ra_docx(report: dict[str, Any], ra_rows: list[dict[str, Any]], matrix:
     doc.add_paragraph(static.get("pi_note", "P: probability or likelihood rating; IC: Impact Consequence rating."))
     doc.add_paragraph(static.get("remarks_note", "Remark / Actual residual RL records the final residual risk."))
 
+    sections = sections or {}
+
     _add_heading(doc, lbl["ppe"], level=2)
-    ppe_rows = static["ppe"]
+    # Prefer trade/step-specific PPE from the AI draft; fall back to the
+    # generic static list when not provided.
+    ppe_rows = sections.get("ppe_by_trade") or static["ppe"]
     for item in ppe_rows:
-        doc.add_paragraph(item, style="List Bullet")
+        doc.add_paragraph(str(item), style="List Bullet")
+
+    _add_supporting_sections(doc, lbl, language, sections)
 
     _add_heading(doc, lbl["checklist"], level=2)
     checklist = static["checklist"]

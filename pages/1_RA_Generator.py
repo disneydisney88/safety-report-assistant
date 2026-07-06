@@ -25,7 +25,7 @@ from services.language_tools import (
     rows_language_mismatch_count,
 )
 from services.nvidia_client import generate_json, has_api_key, model_name, test_connection
-from services.validators import MethodStatementExtraction, RADraft
+from services.validators import MethodStatementExtraction, RADraft, RAItem
 
 st.set_page_config(page_title="RA Generator", layout="wide", initial_sidebar_state="collapsed")
 
@@ -943,7 +943,7 @@ def ensure_required_ra_rows(data: dict, rows: list[dict[str, str]]) -> list[dict
     return rows
 
 
-def build_hidden_report_prompt(data: dict, step_batch: list[dict[str, str]] | None = None, suppress_extra_rows: bool = False) -> str:
+def build_hidden_report_prompt(data: dict, step_batch: list[dict[str, str]] | None = None, suppress_extra_rows: bool = False, include_sections: bool = True) -> str:
     matrix = data.get("risk_matrix", {}) or {}
     joined = " ".join(
         [
@@ -987,8 +987,11 @@ def build_hidden_report_prompt(data: dict, step_batch: list[dict[str, str]] | No
             f"- construction activity: {data.get('activity', 'To be confirmed')}",
             f"- equipment/tools: {data.get('equipment', 'To be confirmed')}",
             f"- confined_space: {data.get('confined_space', 'No')}",
+            f"- workforce/trades: {data.get('workforce', '') or 'Not stated - assume typical trade crew and flag for site verification'}",
+            f"- duration/time of work: {data.get('duration', '') or 'Not stated - flag day/night and typhoon-season considerations for site verification'}",
             f"- matrix version: {data.get('standard', matrix.get('matrix_name', 'To be confirmed'))}",
             f"- risk matrix name: {matrix.get('matrix_name', 'To be confirmed')}",
+            f"- include_supporting_sections: {'true - fill ppe_by_trade, permits_checklist, emergency_arrangements, training_records and inspection_schedule' if include_sections else 'false - fill risk items only; leave the supporting section fields empty in this batch'}",
             "",
             "Confirmed work steps:",
             steps,
@@ -1043,13 +1046,13 @@ RA_BATCH_SIZE = 6
 RA_TRANSLATION_BATCH_SIZE = 8
 
 
-def _ai_generation_payload(data: dict, batch: list[dict[str, str]], suppress_extra_rows: bool) -> dict:
+def _ai_generation_payload(data: dict, batch: list[dict[str, str]], suppress_extra_rows: bool, include_sections: bool = True) -> dict:
     return {
         **data,
         "confirmed_steps": [record["step_text"] for record in batch],
         "confirmed_step_records": batch,
         "method_statement_text": data.get("method_statement_text", "")[:12000],
-        "hidden_report_prompt": build_hidden_report_prompt(data, batch, suppress_extra_rows),
+        "hidden_report_prompt": build_hidden_report_prompt(data, batch, suppress_extra_rows, include_sections),
         "instruction": (
             "Prepare a professional Risk Assessment Report according to IEC 31010 and Hong Kong safety legislation / CoP. "
             "Use the uploaded Method Statement text, confirmed steps and matched risk library first. Do not invent exact legal clause numbers. "
@@ -1070,29 +1073,44 @@ def generate_ra_with_ai(data: dict) -> tuple[RADraft | None, list[str], str | No
     """Generate the RA draft with NVIDIA AI, batching long step lists."""
     records = step_records(data.get("confirmed_steps", []))
     if len(records) <= RA_BATCH_SIZE:
-        payload = _ai_generation_payload(data, records, suppress_extra_rows=False)
+        payload = _ai_generation_payload(data, records, suppress_extra_rows=False, include_sections=True)
         return generate_json(RA_SYSTEM_PROMPT, payload, RADraft)
 
     all_items: list = []
     all_flags: list[str] = []
     errors: list[str] = []
+    sections_draft: RADraft | None = None
     batches = [records[start : start + RA_BATCH_SIZE] for start in range(0, len(records), RA_BATCH_SIZE)]
     progress = st.progress(0.0, text=f"Generating RA rows in {len(batches)} batches... / 分批生成風險評估列...")
     for index, batch in enumerate(batches, start=1):
-        payload = _ai_generation_payload(data, batch, suppress_extra_rows=True)
+        # Supporting sections (permits, emergency, training, inspection) are
+        # requested once, on the final batch, then attached to the merged draft.
+        is_last = index == len(batches)
+        payload = _ai_generation_payload(data, batch, suppress_extra_rows=True, include_sections=is_last)
         draft, flags, error = generate_json(RA_SYSTEM_PROMPT, payload, RADraft)
         all_flags.extend(flags)
         if error:
             errors.append(f"batch {index}: {error}")
         if draft is not None and draft.items:
             all_items.extend(draft.items)
+        if draft is not None and (draft.permits_checklist or draft.inspection_schedule or draft.training_records or draft.ppe_by_trade or draft.emergency_arrangements):
+            sections_draft = draft
         progress.progress(index / len(batches), text=f"Batch {index}/{len(batches)} done / 已完成 {index}/{len(batches)} 批")
     progress.empty()
     unique_flags = list(dict.fromkeys(all_flags))
     if not all_items:
         return None, unique_flags, "; ".join(errors) or "ai_returned_no_items"
     # Steps whose batch failed are covered later by ensure_required_ra_rows.
-    merged = RADraft(disclaimer=DISCLAIMER, overall_risk_level="To be confirmed", items=all_items)
+    merged = RADraft(
+        disclaimer=DISCLAIMER,
+        overall_risk_level="To be confirmed",
+        items=all_items,
+        ppe_by_trade=sections_draft.ppe_by_trade if sections_draft else [],
+        permits_checklist=sections_draft.permits_checklist if sections_draft else [],
+        emergency_arrangements=sections_draft.emergency_arrangements if sections_draft else None,
+        training_records=sections_draft.training_records if sections_draft else [],
+        inspection_schedule=sections_draft.inspection_schedule if sections_draft else [],
+    )
     return merged, unique_flags, None
 
 
@@ -1114,7 +1132,7 @@ def _translate_draft_with_ai(draft: RADraft, language: str, instruction: str) ->
         if error or result is None or len(result.items) != len(chunk):
             return None
         translated_items.extend(result.items)
-    return RADraft(disclaimer=draft.disclaimer, overall_risk_level=draft.overall_risk_level, items=translated_items)
+    return draft.model_copy(update={"items": translated_items})
 
 
 def enforce_output_language(data: dict, draft: RADraft, use_ai: bool) -> RADraft:
@@ -1135,7 +1153,7 @@ def enforce_output_language(data: dict, draft: RADraft, use_ai: bool) -> RADraft
             draft = translated
             rows = [item.model_dump() for item in draft.items]
     normalized = normalize_rows_language(rows, language)
-    return RADraft(disclaimer=draft.disclaimer, overall_risk_level=draft.overall_risk_level, items=normalized)
+    return draft.model_copy(update={"items": [RAItem.model_validate(row) for row in normalized]})
 
 
 report_language = render_top_toolbar()
@@ -1191,6 +1209,14 @@ with st.form("basic_info"):
     activity = col2.text_input(UI["activity"], placeholder=UI["activity_ph"])
     location = col1.text_input(UI["location"], placeholder=UI["location_ph"])
     equipment = col2.text_area(UI["equipment"], placeholder=UI["equipment_ph"])
+    workforce = col1.text_input(
+        "Workforce / trades (optional) / 工作人員及工種（可選）",
+        placeholder="e.g. 6 trained scaffolders + 1 competent person / 例：6名熟練搭棚工人及1名合資格人士",
+    )
+    duration = col2.text_input(
+        "Duration & time of work (optional) / 工期及作業時間（可選）",
+        placeholder="e.g. 5 days, day work only, typhoon season / 例：5天日間工作，颱風季節",
+    )
     confined_space = col1.radio(UI["confined"], ["No", "Yes"], horizontal=True)
     matrix_version_default = f"{selected_matrix.get('matrix_id', selected_matrix_name)} / {selected_matrix.get('matrix_name', selected_matrix_name)}"
     standard = matrix_version_default
@@ -1276,7 +1302,8 @@ if submitted:
         ai_document_title = "" if not ai_ms_extraction else ai_ms_extraction.document_title
         activity_value = activity.strip() or (ai_activity if ai_activity and ai_activity != "To be confirmed" else f"Works described in uploaded Method Statement: {ms_file_name}")
         location_value = location.strip() or "To be confirmed from Method Statement / project information"
-        equipment_value = equipment.strip() or "To be confirmed from Method Statement / uploaded document"
+        ai_equipment = (ai_ms_extraction.plant_equipment if ai_ms_extraction else "").strip()
+        equipment_value = equipment.strip() or ai_equipment or "To be confirmed from Method Statement / uploaded document"
         if ai_project_name and ai_project_name != "To be confirmed" and not location.strip():
             location_value = ai_project_name
         project_value = project.strip() or (ai_document_title if ai_document_title and ai_document_title != "To be confirmed" else (ms_file_name.rsplit(".", 1)[0] if ms_file_name else "Risk Assessment Report"))
@@ -1289,6 +1316,8 @@ if submitted:
             "equipment": equipment_value,
             "confined_space": confined_space,
             "site_rules": site_rules.strip(),
+            "workforce": workforce.strip() or (ai_ms_extraction.workforce_trades if ai_ms_extraction else ""),
+            "duration": duration.strip() or (ai_ms_extraction.duration_time_of_work if ai_ms_extraction else ""),
             "standard": standard,
             "jurisdiction_profile": selected_profile,
             "risk_matrix": selected_matrix,
@@ -1352,6 +1381,18 @@ if st.session_state.get("ra_stage") in {"confirm", "generated"}:
             st.write(f"**Document title / 文件標題:** {ai_info.get('document_title', '-')}")
             st.write(f"**Construction activity / 施工活動:** {ai_info.get('construction_activity', '-')}")
             st.write(f"**Project name / 工程名稱:** {ai_info.get('project_name', '-')}")
+            if ai_info.get("plant_equipment"):
+                st.write(f"**Plant & equipment / 機械及設備:** {ai_info['plant_equipment']}")
+            if ai_info.get("workforce_trades"):
+                st.write(f"**Workforce / 工作人員:** {ai_info['workforce_trades']}")
+            if ai_info.get("working_height_environment"):
+                st.write(f"**Height & environment / 高度及環境:** {ai_info['working_height_environment']}")
+            if ai_info.get("duration_time_of_work"):
+                st.write(f"**Duration / 工期:** {ai_info['duration_time_of_work']}")
+            provisions = ai_info.get("existing_safety_provisions") or []
+            if provisions:
+                st.write("**Safety provisions stated in MS / 文件已列明的安全措施:**")
+                st.write("\n".join(f"- {item}" for item in provisions[:15]))
             rejected = ai_info.get("rejected_headings_or_controls") or []
             if rejected:
                 st.write("**Rejected headings / controls / 已排除標題或控制措施:**")
@@ -1506,7 +1547,32 @@ if st.session_state.get("ra_stage") == "generated" and "ra_draft" in st.session_
 
     st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
 
-    docx = docx_export.build_ra_docx(report, rows, data.get("risk_matrix", {}))
+    sections = {
+        "ppe_by_trade": draft.ppe_by_trade,
+        "permits_checklist": [row.model_dump() for row in draft.permits_checklist],
+        "emergency_arrangements": draft.emergency_arrangements.model_dump() if draft.emergency_arrangements else {},
+        "training_records": [row.model_dump() for row in draft.training_records],
+        "inspection_schedule": [row.model_dump() for row in draft.inspection_schedule],
+    }
+    if sections["permits_checklist"]:
+        with st.expander("Permits & statutory documentation / 許可證及法定文件", expanded=False):
+            st.dataframe(pd.DataFrame(sections["permits_checklist"]), hide_index=True, width="stretch")
+    if sections["emergency_arrangements"]:
+        with st.expander("Emergency arrangements / 應急安排", expanded=False):
+            ea = sections["emergency_arrangements"]
+            for scenario in ea.get("foreseeable_scenarios", []):
+                st.write(f"- {scenario}")
+            for key in ("rescue_plan", "first_aid", "emergency_contacts", "assembly_point", "adverse_weather_arrangements"):
+                if ea.get(key):
+                    st.write(f"**{key}:** {ea[key]}")
+    if sections["training_records"]:
+        with st.expander("Training & competency records / 訓練及資格紀錄", expanded=False):
+            st.dataframe(pd.DataFrame(sections["training_records"]), hide_index=True, width="stretch")
+    if sections["inspection_schedule"]:
+        with st.expander("Monitoring & inspection schedule / 監察及巡查時間表", expanded=False):
+            st.dataframe(pd.DataFrame(sections["inspection_schedule"]), hide_index=True, width="stretch")
+
+    docx = docx_export.build_ra_docx(report, rows, data.get("risk_matrix", {}), sections)
     xlsx = build_ra_excel(report, rows, data.get("risk_matrix", {}))
     col1, col2 = st.columns(2)
     col1.download_button(UI["word"], docx, file_name="risk_assessment_report.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
