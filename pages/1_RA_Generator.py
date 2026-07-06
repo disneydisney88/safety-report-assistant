@@ -1261,6 +1261,13 @@ if st.session_state.get("ra_stage") in {"confirm", "generated"}:
     col2.write(f"**Jurisdiction:** {data['jurisdiction_profile']['display_name']}")
     col2.write(f"**Risk Matrix:** {data['risk_matrix']['matrix_name']}")
     col2.write(f"**Steps Source:** {data['steps_source']}")
+    if data.get("method_statement_text") and data.get("steps_source") == "AI / industry standard inferred":
+        st.warning(
+            "上載的文件中找不到真實施工工序（文件可能是圖則、通告或掃描檔）。"
+            "以下步驟只是行業通用範本，請在下方自行修改或貼上實際工序後再生成報告。\n\n"
+            "No real work steps were found in the uploaded document (it may be a drawing, notice or scanned file). "
+            "The steps below are a generic industry template - please edit them or paste the actual work steps before generating."
+        )
     if data.get("method_statement_file"):
         col1.write(f"**Uploaded MS:** {data['method_statement_file']}")
         col1.write(f"**MS Extracted Text:** {len(data.get('method_statement_text', ''))} characters")

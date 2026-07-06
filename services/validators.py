@@ -1,10 +1,29 @@
 from __future__ import annotations
 
 from typing import Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
-class RAItem(BaseModel):
+class NoneTolerantModel(BaseModel):
+    """AI backends return null for unknown fields; treat null as 'use default'
+    instead of failing validation and discarding the whole response."""
+
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_nulls(cls, data):
+        if isinstance(data, dict):
+            cleaned = {}
+            for key, value in data.items():
+                if value is None:
+                    continue
+                if isinstance(value, list):
+                    value = [item for item in value if item is not None]
+                cleaned[key] = value
+            return cleaned
+        return data
+
+
+class RAItem(NoneTolerantModel):
     source_step_id: str = ""
     source_step_text_original: str = ""
     source_step_text_translated: str = ""
@@ -26,13 +45,13 @@ class RAItem(BaseModel):
     remarks_items_to_be_confirmed: str = "To be confirmed"
 
 
-class RADraft(BaseModel):
+class RADraft(NoneTolerantModel):
     disclaimer: str
     overall_risk_level: str = "To be confirmed"
     items: list[RAItem] = Field(default_factory=list)
 
 
-class MethodStatementExtraction(BaseModel):
+class MethodStatementExtraction(NoneTolerantModel):
     document_title: str = "To be confirmed"
     construction_activity: str = "To be confirmed"
     project_name: str = "To be confirmed"
