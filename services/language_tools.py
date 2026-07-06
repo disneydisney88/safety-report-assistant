@@ -64,8 +64,14 @@ def contains_cjk(text: Any) -> bool:
     return bool(_CJK_RE.search(str(text or "")))
 
 
+_PAREN_RE = re.compile(r"[（(][^（()）]*[)）]")
+
+
 def _strip_allowed_tokens(text: str) -> str:
     value = text
+    # Bracketed English technical terms after a Chinese term, e.g.
+    # "高處墮下 (fall from height)", are an allowed HK RA convention.
+    value = _PAREN_RE.sub(" ", value)
     for token in ALLOWED_ABBREVIATIONS:
         value = value.replace(token, " ")
     # Risk rating fragments such as "P2 x S5 = 10" are always allowed.
