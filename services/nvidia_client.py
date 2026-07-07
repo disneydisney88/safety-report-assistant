@@ -12,7 +12,11 @@ from pydantic import BaseModel, ValidationError
 from services.redaction import redact_text
 from services.ai_prompts import DISCLAIMER
 
-BASE_URL = "https://integrate.api.nvidia.com/v1"
+DEFAULT_BASE_URL = "https://integrate.api.nvidia.com/v1"
+
+
+def base_url() -> str:
+    return st.secrets.get("AI_BASE_URL", DEFAULT_BASE_URL)
 DEFAULT_MODEL = "z-ai/glm-5.2"
 DEFAULT_TEMPERATURE = 0.2
 DEFAULT_TOP_P = 1.0
@@ -49,7 +53,7 @@ def generation_options() -> dict[str, Any]:
         "max_tokens": min(requested_max_tokens, MAX_ALLOWED_TOKENS),
     }
     seed = st.secrets.get("NVIDIA_SEED", "")
-    if seed != "":
+    if seed != "" and "integrate.api.nvidia.com" in base_url():
         options["seed"] = int(seed)
     extra = _thinking_extra_body()
     if extra:
@@ -59,7 +63,7 @@ def generation_options() -> dict[str, Any]:
 
 def _client(timeout_override: float | None = None) -> OpenAI:
     return OpenAI(
-        base_url=BASE_URL,
+        base_url=base_url(),
         api_key=st.secrets["NVIDIA_API_KEY"],
         timeout=timeout_override if timeout_override is not None else float(st.secrets.get("NVIDIA_TIMEOUT_SECONDS", DEFAULT_TIMEOUT_SECONDS)),
         max_retries=0,
