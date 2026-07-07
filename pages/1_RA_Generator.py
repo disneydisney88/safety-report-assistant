@@ -1487,7 +1487,15 @@ def generate_ra_with_ai(data: dict) -> tuple[RADraft | None, list[str], str | No
     sections_draft: RADraft | None = None
     batches = [records[start : start + RA_BATCH_SIZE] for start in range(0, len(records), RA_BATCH_SIZE)]
     progress = st.progress(0.0, text=f"Generating RA rows in {len(batches)} batches... / 分批生成風險評估列...")
+    import time as _time
+    started = _time.time()
+    AI_TIME_BUDGET_SECONDS = 300  # hard cap: never keep the user waiting past ~5 min
     for index, batch in enumerate(batches, start=1):
+        elapsed = int(_time.time() - started)
+        if elapsed > AI_TIME_BUDGET_SECONDS:
+            errors.append(f"time_budget_exhausted_after_batch_{index - 1}")
+            break
+        progress.progress((index - 1) / len(batches), text=f"Batch {index}/{len(batches)}... 已用 {elapsed}s / AI time budget 300s")
         # Supporting sections (permits, emergency, training, inspection) are
         # requested once, on the final batch, then attached to the merged draft.
         is_last = index == len(batches)
@@ -1552,7 +1560,7 @@ def enforce_output_language(data: dict, draft: RADraft, use_ai: bool) -> RADraft
         return draft
     rows = [item.model_dump() for item in draft.items]
     if use_ai and has_api_key() and rows_language_mismatch_count(rows, language):
-        with st.spinner("Normalising report language... / 正在統一報告語言..."):
+        with st.spinner("Normalising report language (max ~2 min)... / 正在統一報告語言..."):
             translated = _translate_draft_with_ai(draft, language, data.get("language_instruction", ""))
         if translated is not None:
             draft = translated

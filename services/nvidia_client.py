@@ -195,7 +195,8 @@ def generate_json(system_prompt: str, payload: dict[str, Any], schema: Type[Base
     # The free shared NVIDIA endpoint returns 503 ResourceExhausted when its
     # worker pool is saturated; that clears within seconds, so back off and
     # retry instead of dropping straight to the local template.
-    retryable_tokens = ("Timeout", "Connection", "503", "429", "ResourceExhausted", "RateLimit", "InternalServerError", "Service Unavailable")
+    busy_tokens = ("503", "429", "ResourceExhausted", "RateLimit", "InternalServerError", "Service Unavailable", "Connection")
+    timeout_retries = 0
     for attempt in range(4):
         try:
             response = _client().chat.completions.create(
@@ -207,8 +208,16 @@ def generate_json(system_prompt: str, payload: dict[str, Any], schema: Type[Base
         except Exception as exc:
             detail = re.sub(r"\s+", " ", str(exc))[:180]
             last_error = f"{exc.__class__.__name__}: {detail}" if detail else exc.__class__.__name__
-            if attempt < 3 and any(token in last_error for token in retryable_tokens):
-                time.sleep(5 * (attempt + 1))  # 5s, 10s, 15s
+            # A timeout burns the full NVIDIA_TIMEOUT_SECONDS, so allow only one
+            # timeout retry; busy 503/429 responses fail fast, so a few short
+            # sleeps are cheap.
+            if "Timeout" in last_error:
+                timeout_retries += 1
+                if timeout_retries > 1 or attempt == 3:
+                    return None, flags, last_error
+                continue
+            if attempt < 3 and any(token in last_error for token in busy_tokens):
+                time.sleep(4 * (attempt + 1))  # 4s, 8s, 12s
                 continue
             return None, flags, last_error
     if response is None:
