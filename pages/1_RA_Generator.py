@@ -1093,7 +1093,7 @@ def generate_ra_with_ai(data: dict) -> tuple[RADraft | None, list[str], str | No
             errors.append(f"batch {index}: {error}")
         if draft is not None and draft.items:
             all_items.extend(draft.items)
-        if draft is not None and (draft.permits_checklist or draft.inspection_schedule or draft.training_records or draft.ppe_by_trade or draft.emergency_arrangements):
+        if draft is not None and any(getattr(draft, field, None) for field in ("permits_checklist", "inspection_schedule", "training_records", "ppe_by_trade", "emergency_arrangements")):
             sections_draft = draft
         progress.progress(index / len(batches), text=f"Batch {index}/{len(batches)} done / 已完成 {index}/{len(batches)} 批")
     progress.empty()
@@ -1105,11 +1105,11 @@ def generate_ra_with_ai(data: dict) -> tuple[RADraft | None, list[str], str | No
         disclaimer=DISCLAIMER,
         overall_risk_level="To be confirmed",
         items=all_items,
-        ppe_by_trade=sections_draft.ppe_by_trade if sections_draft else [],
-        permits_checklist=sections_draft.permits_checklist if sections_draft else [],
-        emergency_arrangements=sections_draft.emergency_arrangements if sections_draft else None,
-        training_records=sections_draft.training_records if sections_draft else [],
-        inspection_schedule=sections_draft.inspection_schedule if sections_draft else [],
+        ppe_by_trade=getattr(sections_draft, "ppe_by_trade", []) if sections_draft else [],
+        permits_checklist=getattr(sections_draft, "permits_checklist", []) if sections_draft else [],
+        emergency_arrangements=getattr(sections_draft, "emergency_arrangements", None) if sections_draft else None,
+        training_records=getattr(sections_draft, "training_records", []) if sections_draft else [],
+        inspection_schedule=getattr(sections_draft, "inspection_schedule", []) if sections_draft else [],
     )
     return merged, unique_flags, None
 
@@ -1302,7 +1302,9 @@ if submitted:
         ai_document_title = "" if not ai_ms_extraction else ai_ms_extraction.document_title
         activity_value = activity.strip() or (ai_activity if ai_activity and ai_activity != "To be confirmed" else f"Works described in uploaded Method Statement: {ms_file_name}")
         location_value = location.strip() or "To be confirmed from Method Statement / project information"
-        ai_equipment = (ai_ms_extraction.plant_equipment if ai_ms_extraction else "").strip()
+        # getattr: survive Streamlit partial hot-reload where the page is new but
+        # already-imported service modules (old schema) have not restarted yet.
+        ai_equipment = str(getattr(ai_ms_extraction, "plant_equipment", "") or "").strip()
         equipment_value = equipment.strip() or ai_equipment or "To be confirmed from Method Statement / uploaded document"
         if ai_project_name and ai_project_name != "To be confirmed" and not location.strip():
             location_value = ai_project_name
@@ -1316,8 +1318,8 @@ if submitted:
             "equipment": equipment_value,
             "confined_space": confined_space,
             "site_rules": site_rules.strip(),
-            "workforce": workforce.strip() or (ai_ms_extraction.workforce_trades if ai_ms_extraction else ""),
-            "duration": duration.strip() or (ai_ms_extraction.duration_time_of_work if ai_ms_extraction else ""),
+            "workforce": workforce.strip() or str(getattr(ai_ms_extraction, "workforce_trades", "") or ""),
+            "duration": duration.strip() or str(getattr(ai_ms_extraction, "duration_time_of_work", "") or ""),
             "standard": standard,
             "jurisdiction_profile": selected_profile,
             "risk_matrix": selected_matrix,
@@ -1547,12 +1549,16 @@ if st.session_state.get("ra_stage") == "generated" and "ra_draft" in st.session_
 
     st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
 
+    def _dump_rows(value):
+        return [row.model_dump() if hasattr(row, "model_dump") else dict(row) for row in (value or [])]
+
+    emergency_obj = getattr(draft, "emergency_arrangements", None)
     sections = {
-        "ppe_by_trade": draft.ppe_by_trade,
-        "permits_checklist": [row.model_dump() for row in draft.permits_checklist],
-        "emergency_arrangements": draft.emergency_arrangements.model_dump() if draft.emergency_arrangements else {},
-        "training_records": [row.model_dump() for row in draft.training_records],
-        "inspection_schedule": [row.model_dump() for row in draft.inspection_schedule],
+        "ppe_by_trade": list(getattr(draft, "ppe_by_trade", []) or []),
+        "permits_checklist": _dump_rows(getattr(draft, "permits_checklist", [])),
+        "emergency_arrangements": (emergency_obj.model_dump() if hasattr(emergency_obj, "model_dump") else dict(emergency_obj)) if emergency_obj else {},
+        "training_records": _dump_rows(getattr(draft, "training_records", [])),
+        "inspection_schedule": _dump_rows(getattr(draft, "inspection_schedule", [])),
     }
     if sections["permits_checklist"]:
         with st.expander("Permits & statutory documentation / 許可證及法定文件", expanded=False):
