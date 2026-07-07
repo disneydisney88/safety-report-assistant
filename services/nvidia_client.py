@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from typing import Any, Type
 
 import streamlit as st
@@ -164,6 +165,8 @@ def test_connection() -> tuple[bool, str]:
                 )
         except Exception:
             pass
+        if any(token in detail for token in ("503", "ResourceExhausted", "Service Unavailable")):
+            hint += " | Free shared endpoint is busy right now - wait 1-2 minutes and test again; generation auto-retries with backoff."
         return False, f"{exc.__class__.__name__}: {detail}{hint}"
 
 
@@ -189,7 +192,11 @@ def generate_json(system_prompt: str, payload: dict[str, Any], schema: Type[Base
     messages.append({"role": "user", "content": "STRUCTURED INPUT DATA:\n" + redacted_payload})
     response = None
     last_error = ""
-    for attempt in range(2):  # one automatic retry on timeout / connection errors
+    # The free shared NVIDIA endpoint returns 503 ResourceExhausted when its
+    # worker pool is saturated; that clears within seconds, so back off and
+    # retry instead of dropping straight to the local template.
+    retryable_tokens = ("Timeout", "Connection", "503", "429", "ResourceExhausted", "RateLimit", "InternalServerError", "Service Unavailable")
+    for attempt in range(4):
         try:
             response = _client().chat.completions.create(
                 model=model_name(),
@@ -200,7 +207,8 @@ def generate_json(system_prompt: str, payload: dict[str, Any], schema: Type[Base
         except Exception as exc:
             detail = re.sub(r"\s+", " ", str(exc))[:180]
             last_error = f"{exc.__class__.__name__}: {detail}" if detail else exc.__class__.__name__
-            if attempt == 0 and ("Timeout" in last_error or "Connection" in last_error):
+            if attempt < 3 and any(token in last_error for token in retryable_tokens):
+                time.sleep(5 * (attempt + 1))  # 5s, 10s, 15s
                 continue
             return None, flags, last_error
     if response is None:
