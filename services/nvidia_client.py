@@ -170,6 +170,45 @@ def test_connection() -> tuple[bool, str]:
         return False, f"{exc.__class__.__name__}: {detail}{hint}"
 
 
+def _parse_json_loose(content: str) -> Any | None:
+    """Best-effort JSON extraction from a chat model reply. Handles ```json
+    fences, reasoning preambles and trailing text. Returns None if nothing
+    parseable is found (never raises)."""
+    if not content:
+        return None
+    text = content.strip()
+    # Strip ```json ... ``` / ``` ... ``` fences.
+    fence = re.search(r"```(?:json)?\s*(.+?)```", text, flags=re.DOTALL | re.IGNORECASE)
+    if fence:
+        text = fence.group(1).strip()
+    # 1) whole string.
+    try:
+        return json.loads(text)
+    except (json.JSONDecodeError, ValueError):
+        pass
+    # 2) widest {...} or [...] span.
+    for open_ch, close_ch in (("{", "}"), ("[", "]")):
+        start = text.find(open_ch)
+        end = text.rfind(close_ch)
+        if 0 <= start < end:
+            try:
+                return json.loads(text[start : end + 1])
+            except (json.JSONDecodeError, ValueError):
+                continue
+    # 3) incrementally trim from the end (truncated / trailing text).
+    start = text.find("{")
+    if start >= 0:
+        snippet = text[start:]
+        for end in range(len(snippet), start, -1):
+            if snippet[end - 1] != "}":
+                continue
+            try:
+                return json.loads(snippet[:end])
+            except (json.JSONDecodeError, ValueError):
+                continue
+    return None
+
+
 def _message_text(message: Any) -> str:
     """Return the model's text, falling back to reasoning_content for
     reasoning models that leave the content field empty."""
@@ -236,12 +275,12 @@ def generate_json(system_prompt: str, payload: dict[str, Any], schema: Type[Base
     if response is None:
         return None, flags, last_error or "no_response"
     content = _message_text(response.choices[0].message) or "{}"
-    try:
-        data = json.loads(content)
-    except json.JSONDecodeError:
-        start = content.find("{")
-        end = content.rfind("}")
-        data = json.loads(content[start : end + 1]) if start >= 0 and end > start else {}
+    data = _parse_json_loose(content)
+    if data is None:
+        # Model replied but not as usable JSON (reasoning preamble, ```json
+        # fences, truncated object...). Never crash the app - report and let the
+        # caller fall back to the local template.
+        return None, flags, "invalid_json_from_model: " + re.sub(r"\s+", " ", content)[:160]
     try:
         return schema.model_validate(data), flags, None
     except ValidationError as exc:
