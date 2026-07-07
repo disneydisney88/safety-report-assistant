@@ -16,7 +16,7 @@ DEFAULT_MODEL = "z-ai/glm-5.2"
 DEFAULT_TEMPERATURE = 0.2
 DEFAULT_TOP_P = 1.0
 DEFAULT_MAX_TOKENS = 8192
-MAX_ALLOWED_TOKENS = 8192
+MAX_ALLOWED_TOKENS = 16384
 DEFAULT_TIMEOUT_SECONDS = 90.0
 
 
@@ -26,6 +26,18 @@ def has_api_key() -> bool:
 
 def model_name() -> str:
     return st.secrets.get("NVIDIA_MODEL", DEFAULT_MODEL)
+
+
+def _thinking_extra_body() -> dict[str, Any] | None:
+    """Hybrid-reasoning models (DeepSeek V4, GLM) accept a thinking toggle via
+    chat_template_kwargs. Thinking OFF by default: structured-JSON drafting
+    needs speed, and long reasoning chains were causing timeouts. Set
+    NVIDIA_THINKING = "true" in secrets to enable it."""
+    model = model_name().lower()
+    if not any(tag in model for tag in ("deepseek", "glm")):
+        return None
+    thinking = str(st.secrets.get("NVIDIA_THINKING", "false")).strip().lower() == "true"
+    return {"chat_template_kwargs": {"thinking": thinking}}
 
 
 def generation_options() -> dict[str, Any]:
@@ -38,6 +50,9 @@ def generation_options() -> dict[str, Any]:
     seed = st.secrets.get("NVIDIA_SEED", "")
     if seed != "":
         options["seed"] = int(seed)
+    extra = _thinking_extra_body()
+    if extra:
+        options["extra_body"] = extra
     return options
 
 
@@ -116,15 +131,17 @@ def test_connection() -> tuple[bool, str]:
     if not has_api_key():
         return False, "missing_api_key"
     try:
+        kwargs: dict[str, Any] = {"temperature": 0, "top_p": 1, "max_tokens": 64}
+        extra = _thinking_extra_body()
+        if extra:
+            kwargs["extra_body"] = extra
         response = _client().chat.completions.create(
             model=model_name(),
             messages=[
                 {"role": "system", "content": "Return valid JSON only."},
                 {"role": "user", "content": '{"ping":"connection_test"}'},
             ],
-            temperature=0,
-            top_p=1,
-            max_tokens=64,
+            **kwargs,
         )
         content = response.choices[0].message.content or ""
         return True, f"connected ({model_name()})" if content else "connected_empty_response"
