@@ -426,6 +426,74 @@ def _set_cell_borders(cell, color: str = "000000", size: str = "6") -> None:
         element.set(qn("w:color"), color)
 
 
+# Ordered subset of the CT_TblPrBase child sequence. WordprocessingML requires
+# tblPr children to appear in this order; strict viewers (OpenOffice / older
+# LibreOffice) silently ignore a whole tblPr whose children are out of order,
+# which collapses a bordered table into a stacked list. Any element we add must
+# be positioned against this sequence rather than blindly appended.
+_TBLPR_ORDER = (
+    "w:tblStyle",
+    "w:tblpPr",
+    "w:tblOverlap",
+    "w:bidiVisual",
+    "w:tblStyleRowBandSize",
+    "w:tblStyleColBandSize",
+    "w:tblW",
+    "w:jc",
+    "w:tblCellSpacing",
+    "w:tblInd",
+    "w:tblBorders",
+    "w:shd",
+    "w:tblLayout",
+    "w:tblCellMar",
+    "w:tblLook",
+    "w:tblCaption",
+    "w:tblDescription",
+)
+
+
+def _tblpr_get_or_add(tbl_pr, tag: str):
+    """Find or create a tblPr child, inserting it in schema-correct order."""
+    existing = tbl_pr.find(qn(tag))
+    if existing is not None:
+        return existing
+    element = OxmlElement(tag)
+    successors = _TBLPR_ORDER[_TBLPR_ORDER.index(tag) + 1:]
+    anchor = None
+    for succ in successors:
+        anchor = tbl_pr.find(qn(succ))
+        if anchor is not None:
+            break
+    if anchor is not None:
+        anchor.addprevious(element)
+    else:
+        tbl_pr.append(element)
+    return element
+
+
+def _set_table_borders(table, color: str = "000000", size: str = "6") -> None:
+    """Force explicit table-level borders.
+
+    Some viewers (OpenOffice / older LibreOffice / Google Docs) do not resolve
+    borders from the ``Table Grid`` style or from cell-level ``w:tcBorders``
+    alone, so a bordered table collapses into what looks like a stacked list.
+    Writing ``w:tblBorders`` directly on the table guarantees a real grid
+    everywhere.
+    """
+    tbl_pr = table._tbl.tblPr
+    borders = _tblpr_get_or_add(tbl_pr, "w:tblBorders")
+    for edge in ("top", "left", "bottom", "right", "insideH", "insideV"):
+        tag = qn(f"w:{edge}")
+        element = borders.find(tag)
+        if element is None:
+            element = OxmlElement(f"w:{edge}")
+            borders.append(element)
+        element.set(qn("w:val"), "single")
+        element.set(qn("w:sz"), size)
+        element.set(qn("w:space"), "0")
+        element.set(qn("w:color"), color)
+
+
 def _set_cell_margins(cell, margin: int = 35) -> None:
     tc_pr = cell._tc.get_or_add_tcPr()
     tc_mar = tc_pr.find(qn("w:tcMar"))
@@ -578,6 +646,7 @@ def _style_table(table, header_fill: str = "E8EEF5") -> None:
     table.style = "Table Grid"
     table.alignment = WD_TABLE_ALIGNMENT.CENTER
     table.autofit = False
+    _set_table_borders(table)
     for row_idx, row in enumerate(table.rows):
         for cell in row.cells:
             cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
@@ -597,16 +666,10 @@ def _set_table_widths(table, widths: list[float]) -> None:
     tbl_pr = table._tbl.tblPr
 
     # Force fixed layout so Word honours the column grid instead of auto-fitting.
-    tbl_layout = tbl_pr.find(qn("w:tblLayout"))
-    if tbl_layout is None:
-        tbl_layout = OxmlElement("w:tblLayout")
-        tbl_pr.append(tbl_layout)
+    tbl_layout = _tblpr_get_or_add(tbl_pr, "w:tblLayout")
     tbl_layout.set(qn("w:type"), "fixed")
 
-    tbl_w = tbl_pr.find(qn("w:tblW"))
-    if tbl_w is None:
-        tbl_w = OxmlElement("w:tblW")
-        tbl_pr.append(tbl_w)
+    tbl_w = _tblpr_get_or_add(tbl_pr, "w:tblW")
     tbl_w.set(qn("w:type"), "dxa")
     tbl_w.set(qn("w:w"), str(total_dxa))
 
