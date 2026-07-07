@@ -144,8 +144,8 @@ def test_connection() -> tuple[bool, str]:
             ],
             **kwargs,
         )
-        content = response.choices[0].message.content or ""
-        return True, f"connected ({model_name()})" if content else "connected_empty_response"
+        content = _message_text(response.choices[0].message)
+        return True, f"connected ({model_name()})" if content else f"connected_empty_ping ({model_name()}) - generation should still work"
     except Exception as exc:
         detail = re.sub(r"\s+", " ", str(exc))[:220]
         # Diagnose the most common cause of a 400 here: the configured model id
@@ -168,6 +168,19 @@ def test_connection() -> tuple[bool, str]:
         if any(token in detail for token in ("503", "ResourceExhausted", "Service Unavailable")):
             hint += " | Free shared endpoint is busy right now - wait 1-2 minutes and test again; generation auto-retries with backoff."
         return False, f"{exc.__class__.__name__}: {detail}{hint}"
+
+
+def _message_text(message: Any) -> str:
+    """Return the model's text, falling back to reasoning_content for
+    reasoning models that leave the content field empty."""
+    content = getattr(message, "content", None)
+    if content:
+        return content
+    for attr in ("reasoning_content", "reasoning"):
+        value = getattr(message, attr, None)
+        if value:
+            return value
+    return ""
 
 
 def generate_json(system_prompt: str, payload: dict[str, Any], schema: Type[BaseModel], options_override: dict[str, Any] | None = None) -> tuple[BaseModel | None, list[str], str | None]:
@@ -222,7 +235,7 @@ def generate_json(system_prompt: str, payload: dict[str, Any], schema: Type[Base
             return None, flags, last_error
     if response is None:
         return None, flags, last_error or "no_response"
-    content = response.choices[0].message.content or "{}"
+    content = _message_text(response.choices[0].message) or "{}"
     try:
         data = json.loads(content)
     except json.JSONDecodeError:
