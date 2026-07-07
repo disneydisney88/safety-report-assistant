@@ -57,11 +57,11 @@ def generation_options() -> dict[str, Any]:
     return options
 
 
-def _client() -> OpenAI:
+def _client(timeout_override: float | None = None) -> OpenAI:
     return OpenAI(
         base_url=BASE_URL,
         api_key=st.secrets["NVIDIA_API_KEY"],
-        timeout=float(st.secrets.get("NVIDIA_TIMEOUT_SECONDS", DEFAULT_TIMEOUT_SECONDS)),
+        timeout=timeout_override if timeout_override is not None else float(st.secrets.get("NVIDIA_TIMEOUT_SECONDS", DEFAULT_TIMEOUT_SECONDS)),
         max_retries=0,
     )
 
@@ -222,7 +222,7 @@ def _message_text(message: Any) -> str:
     return ""
 
 
-def generate_json(system_prompt: str, payload: dict[str, Any], schema: Type[BaseModel], options_override: dict[str, Any] | None = None) -> tuple[BaseModel | None, list[str], str | None]:
+def generate_json(system_prompt: str, payload: dict[str, Any], schema: Type[BaseModel], options_override: dict[str, Any] | None = None, timeout_override: float | None = None, retry_timeouts: bool = False) -> tuple[BaseModel | None, list[str], str | None]:
     hidden_prompt = str(payload.get("hidden_report_prompt", "") or "")
     # The hidden prompt is sent as its own message; remove it from the payload
     # dump so it is not transmitted twice (doubling input tokens caused
@@ -251,7 +251,7 @@ def generate_json(system_prompt: str, payload: dict[str, Any], schema: Type[Base
     timeout_retries = 0
     for attempt in range(4):
         try:
-            response = _client().chat.completions.create(
+            response = _client(timeout_override).chat.completions.create(
                 model=model_name(),
                 messages=messages,
                 **options,
@@ -265,7 +265,7 @@ def generate_json(system_prompt: str, payload: dict[str, Any], schema: Type[Base
             # sleeps are cheap.
             if "Timeout" in last_error:
                 timeout_retries += 1
-                if timeout_retries > 1 or attempt == 3:
+                if not retry_timeouts or timeout_retries > 1 or attempt == 3:
                     return None, flags, last_error
                 continue
             if attempt < 3 and any(token in last_error for token in busy_tokens):

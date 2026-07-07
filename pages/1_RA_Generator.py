@@ -1486,14 +1486,14 @@ def generate_ra_with_ai(data: dict) -> tuple[RADraft | None, list[str], str | No
     # Single consolidated attempt (core RA rows only; supporting sections are a
     # cheaper second call so this one stays as small/fast as possible).
     single_payload = _ai_generation_payload(data, records, suppress_extra_rows=False, include_sections=False)
-    with st.spinner(f"Generating RA for {len(records)} steps in one request... / 一次過生成 {len(records)} 個工序..."):
-        draft, flags, error = generate_json(RA_SYSTEM_PROMPT, single_payload, RADraft)
+    with st.spinner(f"Generating RA for {len(records)} steps (up to ~100s, else local draft)... / 一次過生成 {len(records)} 個工序（最多約 100 秒）..."):
+        draft, flags, error = generate_json(RA_SYSTEM_PROMPT, single_payload, RADraft, timeout_override=100)
     if draft is not None and draft.items:
         # Best-effort supporting sections as a small separate call.
         try:
             sec_payload = _ai_generation_payload(data, records[:1], suppress_extra_rows=True, include_sections=True)
-            with st.spinner("Adding permits / emergency / training sections... / 補充許可證及應急章節..."):
-                sec_draft, sec_flags, _sec_err = generate_json(RA_SYSTEM_PROMPT, sec_payload, RADraft)
+            with st.spinner("Adding permits / emergency / training sections (up to ~60s)... / 補充許可證及應急章節..."):
+                sec_draft, sec_flags, _sec_err = generate_json(RA_SYSTEM_PROMPT, sec_payload, RADraft, timeout_override=60)
             if sec_draft is not None:
                 draft = draft.model_copy(update={
                     "ppe_by_trade": sec_draft.ppe_by_trade,
@@ -1737,6 +1737,7 @@ if submitted:
                     extraction_payload,
                     MethodStatementExtraction,
                     options_override={"max_tokens": 3072},
+                    timeout_override=45,
                 )
                 ai_ms_extraction = extracted if isinstance(extracted, MethodStatementExtraction) else None
 
