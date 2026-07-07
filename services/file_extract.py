@@ -94,6 +94,11 @@ def clean_extracted_steps(raw_steps: list[str], titles: list[str] | None = None,
         "拆棚之程序",
         "riskassessment",
         "tableofcontents",
+        # Table headers / step-list captions, e.g. "步驟 中文工序".
+        "步驟中文工序",
+        "中文工序",
+        "工序標題",
+        "簡化版工序",
     ]
     blocked_terms = [
         "安全準備",

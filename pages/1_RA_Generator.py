@@ -548,8 +548,11 @@ def _zh_item_from_record(record: dict, matrix: dict) -> dict:
         item["additional_control_measures_required"] = joined("additional_controls")
     if record.get("legal_ref_tags"):
         item["legal_cop_reference"] = joined("legal_ref_tags", "; ")
-    if record.get("permit_required"):
-        item["permit_certificate_competent_person_required"] = joined("permit_required", "; ")
+    permit_text = joined("permit_required", "; ")
+    # Bare "No"/"N/A" from library records reads as an empty training/PPE cell;
+    # keep the generic Chinese requirement instead.
+    if permit_text and permit_text.strip().lower() not in {"no", "n/a", "-", "nil", "none"}:
+        item["permit_certificate_competent_person_required"] = permit_text
     if record.get("inspection_points"):
         item["inspection_monitoring_points"] = joined("inspection_points", "；")
     item["hazard_id"] = str(record.get("id", ""))
@@ -569,13 +572,16 @@ def _fallback_ra_zh(data: dict) -> RADraft:
     """
     matrix = data.get("risk_matrix", {})
     scaffold = is_scaffold_dismantling_work(data)
+    bmu = is_bmu_swp_work(data)
     # Chinese reports match against the master-DB records only (their content
     # is written in Chinese); legacy English records would re-introduce mixed
     # language into the fallback rows.
     corpus_records = [r for r in (data.get("matched_library_records") or []) if r.get("source") == "master"]
     items = []
     for record in step_records(data.get("confirmed_steps", [])):
-        if scaffold:
+        if bmu:
+            item = bmu_item_for_step(data, _bmu_hazard_id_for_step(record["step_text"]))
+        elif scaffold:
             hazard_id = _scaffold_hazard_id_for_step(record["step_text"])
             source = {"source_step_id": record["source_step_id"], "step_text": record["step_text"]}
             display = scaffold_required_row(data, hazard_id, source, chinese=True)
@@ -737,6 +743,162 @@ SCAFFOLD_HAZARD_TEXT_ZH = {
     "SCAF-DIS-10": ("惡劣天氣影響棚架穩定", "強風、暴雨、雷暴或工作平台濕滑"),
     "SCAF-DIS-12": ("高處墮下、倒塌或墮物事故後緊急救援", "未確認救援計劃、通訊、急救或緊急通道"),
 }
+
+
+# BMU / suspended working platform testing & commissioning hazards.
+# Wording adapted from the user's reviewed BMU T&C hazard breakdown.
+BMU_TC_LEGAL = "Cap. 59；Cap. 59AC 吊船規例 (Suspended Working Platforms Regulation)；勞工處《吊船安全使用及操作工作守則》；SWP Form 1 / Form 2 / Form 3；如涉及物料吊機，LALG 檢驗及證書"
+BMU_TC_PERMIT = "受訓吊船 / BMU 操作員；合資格人士 / 合資格檢驗員；負載測試由註冊專業工程師 (RPE) 見證及簽發證明；電源由合資格電工檢查及接駁"
+
+BMU_TC_HAZARDS = {
+    "BMU-TC-01": {
+        "category": "Electrical",
+        "hazard": "接駁 380V 電源時觸電、電纜受損或接駁錯誤",
+        "cause": "未經合資格電工接駁；無 ELCB / RCD 保護；未執行隔離 / LOTO；電纜接觸活動部件",
+        "consequence": "觸電、灼傷、死亡；設備損壞",
+        "existing": "由合資格電工檢查及接駁；確認 380V 三相電源及 ELCB / RCD 保護；隔離掣及匙掣受控；電纜路線避開活動部件；插頭、插座及拖曳電纜完好及防水",
+        "additional": "測試前後執行 power on / off 控制；設 LOTO / 隔離安排；測試緊急停止功能；電纜及接駁每日使用前檢查",
+    },
+    "BMU-TC-02": {
+        "category": "Mechanical",
+        "hazard": "BMU 意外移動或未經授權操作",
+        "cause": "控制掣未隔離；匙掣未受控；無專人操作",
+        "consequence": "撞擊、夾傷、吊籠失控",
+        "existing": "匙掣由專人保管；只限受訓操作員操作；測試期間設專人控制掣",
+        "additional": "測試次序按 MS 執行；非測試人員退出範圍；控制箱掛牌警示",
+    },
+    "BMU-TC-03": {
+        "category": "Load Test",
+        "hazard": "負載測試期間吊鉤、吊具、鋼絲繩、吊機或錨固失效導致測試重物墮下",
+        "cause": "吊具未經檢驗；超載；測試重物未繫穩",
+        "consequence": "測試重物墮下擊中人員；設備損毀",
+        "existing": "使用經檢驗及有證書的測試重物；吊籠按 150% SWL、物料吊機按 125% SWL 執行；吊起約 100mm 作靜態測試；下方及周邊設禁區，嚴禁人員進入吊籠 / 吊重下方",
+        "additional": "負載測試由 RPE 見證及簽發證明；靜態測試期間不得作任何運行動作；只限指定操作員；緊急停止可隨時使用；完成測試前不得使用設備",
+    },
+    "BMU-TC-04": {
+        "category": "Load Test",
+        "hazard": "負載測試導致吊籠傾斜、結構變形或 BMU 失穩",
+        "cause": "測試重量分佈不均；結構、連接位、螺母、螺栓或銷釘鬆脫",
+        "consequence": "吊籠傾斜、結構永久變形、整體失穩",
+        "existing": "測試重量平均放置（吊籠約 375kg）；測試前檢查所有結構件、連接位、螺母、螺栓及銷釘",
+        "additional": "負載測試後再次檢查結構有否永久變形或不安全情況；發現變形即停用並由工程師檢查；記錄測試結果並簽署確認",
+    },
+    "BMU-TC-05": {
+        "category": "Mechanical",
+        "hazard": "天台行走小車行走時撞人、撞路軌末端或夾傷",
+        "cause": "行走限位掣失效；路軌有異物；附近有人",
+        "consequence": "撞擊、夾傷、小車出軌",
+        "existing": "測試前清理路軌異物；行走範圍設禁區；只限測試人員在場",
+        "additional": "測試行走限位掣，確認到達路軌末端前停止；異常聲音或震動即停機檢查",
+    },
+    "BMU-TC-06": {
+        "category": "Mechanical",
+        "hazard": "吊臂旋轉 / 伸縮時掃過範圍撞人撞物或夾傷",
+        "cause": "旋轉制動失效；超出安全範圍；旋轉限位失效",
+        "consequence": "撞擊、夾傷、損壞鄰近結構",
+        "existing": "旋轉 / 伸縮範圍設禁區；專人指揮；逐段測試",
+        "additional": "測試旋轉限位掣；檢查有否異常聲音或震動；確認吊臂頭旋轉功能正常",
+    },
+    "BMU-TC-07": {
+        "category": "Mechanical",
+        "hazard": "吊籠升降失控、鋼絲繩異常或雙吊機不同步導致吊籠傾斜",
+        "cause": "吊機故障；鋼絲繩損耗；同步功能失效",
+        "consequence": "吊籠傾斜或墮下；人員受傷",
+        "existing": "測試雙吊機同步、左吊機、右吊機、上升、下降功能；使用前檢查鋼絲繩",
+        "additional": "確認緊急停止及手動下降功能；異常即停止測試並檢查",
+    },
+    "BMU-TC-08": {
+        "category": "Safety Device",
+        "hazard": "限位掣失效導致超程 (over-travel)",
+        "cause": "上限位、下方障礙物限位桿或鬆繩限位未測試或失效",
+        "consequence": "吊籠超程、撞擊結構、鋼絲繩鬆脫",
+        "existing": "逐一測試上限位掣、下方障礙物限位桿及鬆繩限位掣；按檢查表逐項記錄 Pass / Fail",
+        "additional": "鬆繩限位測試確認主鋼絲繩失去張力時停止下降；限位失效即停用設備並維修後重測",
+    },
+    "BMU-TC-09": {
+        "category": "Safety Device",
+        "hazard": "Bypass 按鈕被誤用令安全裝置失效",
+        "cause": "無專人控制 bypass；測試後未復原",
+        "consequence": "安全裝置失效下運行，造成嚴重事故",
+        "existing": "Bypass 功能只限測試用途並由專人操作；操作時全程監督",
+        "additional": "測試完成後確認 bypass 復原；記錄 bypass 使用情況",
+    },
+    "BMU-TC-10": {
+        "category": "Falling Object",
+        "hazard": "工具或部件由高處墮下擊中下方人員或公眾",
+        "cause": "下方未設禁區；工具物料未繫穩；公眾通道未受保護",
+        "consequence": "下方人員或公眾受傷；財物損毀",
+        "existing": "下方及周邊設禁區、圍封及警告標誌；工具繫繩；小型部件放置工具袋",
+        "additional": "鄰近公眾通道加設看守員；吊運及測試避開人流高峰",
+    },
+    "BMU-TC-12": {
+        "category": "Emergency",
+        "hazard": "吊籠停電、卡住或人員被困",
+        "cause": "無緊急下降程序；無通訊安排；無救援計劃",
+        "consequence": "人員被困高空、恐慌、延誤救援",
+        "existing": "測試前確認緊急下降程序及通訊安排（對講機）；救援設備及負責人已安排",
+        "additional": "制定吊籠被困救援計劃（緊急下降 / 專業承辦商 / 消防）；負載測試失效後封鎖設備並由工程師檢查後方可復用",
+    },
+}
+
+BMU_REQUIRED_HAZARD_IDS = ["BMU-TC-03", "BMU-TC-04", "BMU-TC-08", "BMU-TC-09", "BMU-TC-10", "BMU-TC-12"]
+
+
+def is_bmu_swp_work(data: dict) -> bool:
+    text = " ".join([
+        data.get("activity", ""),
+        data.get("equipment", ""),
+        " ".join(data.get("confirmed_steps", [])),
+        data.get("method_statement_text", "")[:3000],
+    ]).lower()
+    return any(token in text for token in ["bmu", "吊船", "suspended working platform", "gondola", "行走小車", "吊籠"])
+
+
+def _bmu_hazard_id_for_step(step_text: str) -> str:
+    text = str(step_text or "").lower()
+    if any(t in text for t in ["380v", "電源", "接駁", "電壓", "隔離掣", "匙掣", "power"]):
+        return "BMU-TC-01"
+    if any(t in text for t in ["負載", "swl", "375kg", "565kg", "load test", "靜態"]):
+        return "BMU-TC-03"
+    if any(t in text for t in ["永久變形", "覆檢", "結構件", "螺母", "螺栓", "銷釘"]):
+        return "BMU-TC-04"
+    if any(t in text for t in ["行走小車", "小車", "trolley", "路軌"]):
+        return "BMU-TC-05"
+    if any(t in text for t in ["旋轉", "slew", "吊臂"]):
+        return "BMU-TC-06"
+    if any(t in text for t in ["bypass"]):
+        return "BMU-TC-09"
+    if any(t in text for t in ["鬆繩", "slack rope", "限位", "limit", "障礙物"]):
+        return "BMU-TC-08"
+    if any(t in text for t in ["上升", "下降", "吊機", "同步", "升起", "hoist", "吊籠控制"]):
+        return "BMU-TC-07"
+    if any(t in text for t in ["緊急停止", "emergency stop", "安全裝置"]):
+        return "BMU-TC-08"
+    if any(t in text for t in ["簽署", "記錄", "檢查表", "rpe", "見證"]):
+        return "BMU-TC-04"
+    return "BMU-TC-02"
+
+
+def bmu_item_for_step(data: dict, hazard_id: str) -> dict:
+    matrix = data.get("risk_matrix", {})
+    info = BMU_TC_HAZARDS.get(hazard_id, BMU_TC_HAZARDS["BMU-TC-02"])
+    return {
+        "hazard_id": hazard_id,
+        "hazard_category": f"BMU T&C - {info['category']}",
+        "hazard": info["hazard"],
+        "cause_of_hazard": info["cause"],
+        "possible_consequence": info["consequence"],
+        "persons_at_risk": "測試人員、操作員、下方工人及附近人士",
+        "initial_risk_rating": _rating_from_matrix(matrix, 3, 5),
+        "existing_control_measures": info["existing"],
+        "additional_control_measures_required": info["additional"],
+        "residual_risk_rating": _rating_from_matrix(matrix, 1, 5),
+        "legal_cop_reference": BMU_TC_LEGAL,
+        "permit_certificate_competent_person_required": BMU_TC_PERMIT,
+        "inspection_monitoring_points": "按檢查表逐項記錄 Pass / Fail；測試前後檢查；異常即停機",
+        "responsible_person": "測試工程師 / 合資格人士 / 安全主任",
+        "remarks_items_to_be_confirmed": "測試結果須由客戶代表及工程師簽署確認；證明文件齊備前不得使用",
+    }
 
 
 def is_scaffold_dismantling_work(data: dict) -> bool:
@@ -954,6 +1116,22 @@ def ensure_required_ra_rows(data: dict, rows: list[dict[str, str]]) -> list[dict
                 rows.append(scaffold_required_row(data, hazard_id, source, chinese))
                 existing_hazard_ids.add(hazard_id)
 
+    if chinese and is_bmu_swp_work(data):
+        # Critical BMU T&C hazards (load test, safety devices, bypass misuse,
+        # falling objects, trapped-in-cage rescue) must appear at least once.
+        existing_hazard_ids = {str(row.get("Hazard ID", "")).strip().upper() for row in rows}
+        source = step_meta[0] if step_meta else {"source_step_id": "S001", "step_text": "BMU 測試及調試"}
+        for hazard_id in BMU_REQUIRED_HAZARD_IDS:
+            if hazard_id not in existing_hazard_ids:
+                item = bmu_item_for_step(data, hazard_id)
+                display = {display_key: item[item_key] for display_key, item_key in _DISPLAY_TO_ITEM_KEYS.items() if item_key in item}
+                display["Source Step ID"] = source.get("source_step_id", "")
+                display["Source Step Original"] = source.get("step_text", "")
+                display["Source Step Translated"] = source.get("step_text", "")
+                display["Work Step"] = "BMU 測試及調試整體控制"
+                rows.append(display)
+                existing_hazard_ids.add(hazard_id)
+
     def row_en(kind: str) -> dict[str, str]:
         if kind == "weather":
             return {
@@ -1053,6 +1231,15 @@ def build_hidden_report_prompt(data: dict, step_batch: list[dict[str, str]] | No
         triggers.append("Plant / lifting interface: include exclusion zone, competent operator, lifting gear inspection, communication and stability controls.")
     if is_scaffold_dismantling_work(data):
         triggers.append("Scaffold dismantling: include scaffold inspection, Form 5 / competent person inspection, independent lifeline, exclusion zone, flying bamboo prohibition, wall tie relocation, temporary bracing, manual bamboo passing, post-dismantling clearance and emergency rescue.")
+    if is_bmu_swp_work(data):
+        triggers.append(
+            "BMU / suspended working platform testing & commissioning: assess EACH tested function against its own failure mode - unintended BMU movement, trolley travel striking persons / rail end, jib slewing sweep and brake failure, telescopic jib trapping, cage hoist failure / rope defect / dual-hoist desynchronisation causing cage tilt, limit switch failure causing over-travel, bypass button misuse defeating safety devices, slack rope detection failure, obstruction bar failure. "
+            "Load test (150% SWL cage / 125% SWL material hoist, raised ~100mm static): assess hoist/rope/anchor failure, test weight falling, uneven weight distribution causing cage tilt, structural deformation, unauthorised operation during static test; RPE witness and certification required, no motion during static test, post-test structural re-inspection. "
+            "Electrical: 380V three-phase supply confirmed by qualified electrician, ELCB/RCD, isolation/LOTO, key switch control, cable route clear of moving parts, weatherproof connections, emergency stop function test. "
+            "Legal references: Cap. 59, Cap. 59AC Suspended Working Platforms Regulation, CoP for Safe Use and Operation of Suspended Working Platforms, SWP Form 1/2/3, LALG certificates for the material hoist. "
+            "Emergency: trapped-in-cage rescue (emergency lowering / specialist / fire services), communication with cage occupants, exclusion zone below, lock-out of failed equipment until engineer re-inspection. "
+            "Do NOT assess the load test as a material stacking / housekeeping issue."
+        )
     if any(token in joined for token in ["hot work", "welding", "cutting", "grinding", "熱工", "焊", "切割", "打磨"]):
         triggers.append("Hot work: include hot work permit, fire watch, combustible material control and post-work fire check.")
     if not triggers:
@@ -1740,6 +1927,10 @@ if st.session_state.get("ra_stage") == "generated" and "ra_draft" in st.session_
         "Version": data["version"],
         "Next Review Date": (date.today() + timedelta(days=365)).isoformat(),
         "Report Language": download_language,
+        "Generated By": (
+            "NVIDIA AI" if data.get("ra_source") == "ai"
+            else "Local template 本地範本" + (f" ({data.get('ra_source_reason')})" if data.get("ra_source_reason") else "")
+        ),
         "Method Statement Source": data.get("method_statement_file") or data.get("steps_source", "-"),
         "Method Statement Extract": data.get("method_statement_text", ""),
         "Confirmed Steps": data.get("confirmed_steps", []),

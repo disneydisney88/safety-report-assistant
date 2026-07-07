@@ -34,8 +34,34 @@ ALLOWED_ABBREVIATIONS = [
     "MR",
     "HR",
     "IC",
-    "Form 5",
-    "FORM 5",
+    # Plant / equipment and HK statutory shorthand routinely written in
+    # English inside Chinese RA documents.
+    "BMU",
+    "SWP",
+    "MEWP",
+    "ELCB",
+    "RCD",
+    "LOTO",
+    "RPE",
+    "REW",
+    "SWL",
+    "LALG",
+    "T&C",
+    "FCS",
+    "TTA",
+    "AED",
+    "SDS",
+    "EMSD",
+    "over-travel",
+    "Bypass",
+    "bypass",
+]
+
+# Pattern-based allowances: statutory form numbers and chapter references,
+# e.g. "Form 5", "Form 1 / Form 2 / Form 3", "Cap. 59AC".
+_ALLOWED_PATTERNS = [
+    re.compile(r"\bForm\s*[0-9]+[A-Z]?\b", re.IGNORECASE),
+    re.compile(r"\bCap\.?\s*[0-9]+[A-Z]*\b", re.IGNORECASE),
 ]
 
 _CJK_RE = re.compile(r"[一-鿿]")
@@ -74,6 +100,8 @@ def _strip_allowed_tokens(text: str) -> str:
     value = _PAREN_RE.sub(" ", value)
     for token in ALLOWED_ABBREVIATIONS:
         value = value.replace(token, " ")
+    for pattern in _ALLOWED_PATTERNS:
+        value = pattern.sub(" ", value)
     # Risk rating fragments such as "P2 x S5 = 10" are always allowed.
     value = re.sub(r"\b[PSL]\s?[1-5]\b", " ", value)
     return value
