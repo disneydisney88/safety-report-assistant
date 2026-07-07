@@ -157,7 +157,8 @@ def test_connection() -> tuple[bool, str]:
         hint = ""
         try:
             available = [m.id for m in _client().models.list().data]
-            if model_name() in available:
+            norm = {m.split("/")[-1] for m in available}
+            if model_name() in available or model_name().split("/")[-1] in norm:
                 hint = f" | model '{model_name()}' exists on the endpoint"
             else:
                 similar = [m for m in available if any(t in m.lower() for t in ("glm", "z-ai", "zai", "zhipu"))][:6]
@@ -171,6 +172,8 @@ def test_connection() -> tuple[bool, str]:
             pass
         if any(token in detail for token in ("503", "ResourceExhausted", "Service Unavailable")):
             hint += " | Free shared endpoint is busy right now - wait 1-2 minutes and test again; generation auto-retries with backoff."
+        if "429" in detail or "quota" in detail.lower() or "RateLimit" in exc.__class__.__name__:
+            hint = " | Rate limit / quota hit. Wait ~60s (per-minute limit), or the model's free daily quota is used up - try NVIDIA_MODEL = gemini-1.5-flash, or enable billing on the Google project."
         return False, f"{exc.__class__.__name__}: {detail}{hint}"
 
 
