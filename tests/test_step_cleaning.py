@@ -43,3 +43,20 @@ def test_deduplicates_and_caps_steps():
     steps = clean_extracted_steps(raw, max_steps=14)
     assert len(steps) == 14
     assert len(set(steps)) == 14
+
+
+def test_rejects_concatenated_labels_and_buttons():
+    junk = [
+        "T&CProcedureof",
+        "MethodofSiteTestingofBMU",
+        "Tractionhoistsselectorswitch",
+        "Cageupbutton",
+        "Emergencystop",
+    ]
+    real = [
+        "接駁 380V、三相、16A、5-pin 臨時電源或永久電源。",
+        "測試控制箱所有按鈕，確認各摩打運行方向正確。",
+        "Test all limit switches and confirm operation",
+    ]
+    steps = clean_extracted_steps(junk + real)
+    assert steps == real

@@ -513,16 +513,66 @@ def _scaffold_hazard_id_for_step(step_text: str) -> str:
     return "SCAF-DIS-02"
 
 
+_RISK_CODE_TO_LS = {"HR": (3, 5), "MR": (2, 4), "LR": (1, 3)}
+
+
+def _best_record_for_step(step_text: str, records: list[dict]) -> dict | None:
+    """Pick the library record whose trigger keywords best match this step.
+
+    Scoring favours longer (more specific) keywords so e.g. 負載測試 beats a
+    single generic 電線 hit from an unrelated category.
+    """
+    lower = str(step_text or "").lower()
+    best, best_score = None, 0
+    for record in records:
+        score = sum(len(str(kw)) for kw in record.get("trigger_keywords", []) if kw and str(kw).lower() in lower)
+        if score > best_score:
+            best, best_score = record, score
+    return best
+
+
+def _zh_item_from_record(record: dict, matrix: dict) -> dict:
+    """Build Chinese RA item content from a matched (master DB) record."""
+    def joined(key: str, sep: str = "；") -> str:
+        return sep.join(str(v) for v in record.get(key, []) if str(v).strip())
+
+    likelihood, severity = _RISK_CODE_TO_LS.get(str(record.get("initial_risk", "MR")).upper(), (2, 4))
+    item = dict(ZH_GENERIC_ITEM)
+    if record.get("hazards"):
+        item["hazard"] = joined("hazards")
+    if record.get("possible_consequences"):
+        item["possible_consequence"] = joined("possible_consequences")
+    if record.get("mandatory_controls"):
+        item["existing_control_measures"] = joined("mandatory_controls")
+    if record.get("additional_controls"):
+        item["additional_control_measures_required"] = joined("additional_controls")
+    if record.get("legal_ref_tags"):
+        item["legal_cop_reference"] = joined("legal_ref_tags", "; ")
+    if record.get("permit_required"):
+        item["permit_certificate_competent_person_required"] = joined("permit_required", "; ")
+    if record.get("inspection_points"):
+        item["inspection_monitoring_points"] = joined("inspection_points", "；")
+    item["hazard_id"] = str(record.get("id", ""))
+    item["hazard_category"] = str(record.get("category", ""))
+    item["initial_risk_rating"] = _rating_from_matrix(matrix, likelihood, severity)
+    item["residual_risk_rating"] = _rating_from_matrix(matrix, 1, severity)
+    return item
+
+
 def _fallback_ra_zh(data: dict) -> RADraft:
     """Chinese local fallback, one row per confirmed step.
 
-    For bamboo-scaffold dismantling each step is mapped to the most relevant
-    reviewed scaffold hazard so the steps differ; other work uses the generic
-    Chinese row. Adverse-weather / public-interface rows are appended later by
-    ensure_required_ra_rows.
+    Each step is matched against the risk library (incl. the HK master
+    database) so different steps get their own specific hazard, cause and
+    controls; scaffold dismantling keeps its reviewed template. Only steps
+    with no match at all use the generic Chinese row.
     """
     matrix = data.get("risk_matrix", {})
     scaffold = is_scaffold_dismantling_work(data)
+    # Chinese reports match against the master-DB records only (their content
+    # is written in Chinese); legacy English records would re-introduce mixed
+    # language into the fallback rows.
+    corpus_records = [r for r in (data.get("matched_library_records") or []) if r.get("source") == "master"]
     items = []
     for record in step_records(data.get("confirmed_steps", [])):
         if scaffold:
@@ -530,22 +580,21 @@ def _fallback_ra_zh(data: dict) -> RADraft:
             source = {"source_step_id": record["source_step_id"], "step_text": record["step_text"]}
             display = scaffold_required_row(data, hazard_id, source, chinese=True)
             item = {_DISPLAY_TO_ITEM_KEYS[key]: value for key, value in display.items() if key in _DISPLAY_TO_ITEM_KEYS}
-            item["source_step_text_original"] = record["step_text"]
-            item["source_step_text_translated"] = record["step_text"]
-            item["work_step"] = record["step_text"]
-            items.append(item)
         else:
-            items.append(
-                {
-                    "source_step_id": record["source_step_id"],
-                    "source_step_text_original": record["step_text"],
-                    "source_step_text_translated": record["step_text"],
-                    "work_step": record["step_text"],
+            matched = _best_record_for_step(record["step_text"], corpus_records)
+            if matched is None:
+                item = {
                     "initial_risk_rating": _rating_from_matrix(matrix, 2, 5),
                     "residual_risk_rating": _rating_from_matrix(matrix, 1, 5),
                     **ZH_GENERIC_ITEM,
                 }
-            )
+            else:
+                item = _zh_item_from_record(matched, matrix)
+        item["source_step_id"] = record["source_step_id"]
+        item["source_step_text_original"] = record["step_text"]
+        item["source_step_text_translated"] = record["step_text"]
+        item["work_step"] = record["step_text"]
+        items.append(item)
     return RADraft(disclaimer=DISCLAIMER, overall_risk_level="待確認", items=items)
 
 
@@ -1081,9 +1130,10 @@ def build_hidden_report_prompt(data: dict, step_batch: list[dict[str, str]] | No
 
 
 # Steps per AI request. Batching keeps each response comfortably inside the
-# model output-token limit so long Method Statements no longer truncate the
-# JSON (which previously forced the generic local fallback).
-RA_BATCH_SIZE = 6
+# model output-token limit AND the request inside the API timeout so long
+# Method Statements no longer truncate JSON or time out (which previously
+# forced the generic local fallback).
+RA_BATCH_SIZE = 4
 RA_TRANSLATION_BATCH_SIZE = 8
 
 

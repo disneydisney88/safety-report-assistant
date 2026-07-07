@@ -65,11 +65,15 @@ def _compact_text(value: str) -> str:
 
 
 # Chinese and English action verbs that mark a real physical work step.
+# Includes testing & commissioning verbs (測試/檢查/確認/接駁) so T&C method
+# statements such as BMU / gondola testing keep their real steps.
 STEP_ACTION_TERMS = [
     "拆", "安裝", "搭", "吊", "搬", "運", "傳", "清", "封閉", "移除", "鋪", "綁", "紮",
-    "澆", "挖", "焊", "切割", "鑽", "set up", "install", "erect", "remove", "dismantle",
+    "澆", "挖", "焊", "切割", "鑽", "測試", "檢查", "確認", "接駁", "調試", "啟動",
+    "set up", "install", "erect", "remove", "dismantle",
     "transport", "carry out", "lift", "hoist", "lower", "pour", "excavate", "weld",
-    "cut", "drill", "deliver", "position", "inspect",
+    "cut", "drill", "deliver", "position", "inspect", "test", "check", "connect",
+    "energize", "commission", "verify", "witness",
 ]
 
 # Suffixes that mark a document title or section heading when the line is short
@@ -118,6 +122,13 @@ def clean_extracted_steps(raw_steps: list[str], titles: list[str] | None = None,
         if compact in title_keys or any(compact == title or compact in title for title in title_keys):
             continue
         if any(term in compact for term in always_blocked_terms):
+            continue
+        # Concatenated English fragments from drawings / table cells such as
+        # "Cageupbutton" or "T&CProcedureof" are labels, not work steps.
+        if re.fullmatch(r"[A-Za-z&()/\-.0-9]+", clean) and len(clean) >= 8:
+            continue
+        # Component labels (buttons, switches, selectors) are not steps.
+        if clean.lower().rstrip(" )").endswith(("button", "switch", "selector", "indicator", "checklist")):
             continue
         has_action = any(term in clean.lower() for term in STEP_ACTION_TERMS)
         # Short heading-like lines without an action verb are titles/headings.

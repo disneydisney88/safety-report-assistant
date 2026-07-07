@@ -143,18 +143,27 @@ def generate_json(system_prompt: str, payload: dict[str, Any], schema: Type[Base
     options = generation_options()
     if options_override:
         options.update(options_override)
-    try:
-        messages = [{"role": "system", "content": system_prompt + "\nReturn valid JSON only."}]
-        if redacted_hidden_prompt:
-            messages.append({"role": "user", "content": "HIDDEN REPORT PROMPT / CONTROLLING BRIEF:\n" + redacted_hidden_prompt})
-        messages.append({"role": "user", "content": "STRUCTURED INPUT DATA:\n" + redacted_payload})
-        response = _client().chat.completions.create(
-            model=model_name(),
-            messages=messages,
-            **options,
-        )
-    except Exception as exc:
-        return None, flags, exc.__class__.__name__
+    messages = [{"role": "system", "content": system_prompt + "\nReturn valid JSON only."}]
+    if redacted_hidden_prompt:
+        messages.append({"role": "user", "content": "HIDDEN REPORT PROMPT / CONTROLLING BRIEF:\n" + redacted_hidden_prompt})
+    messages.append({"role": "user", "content": "STRUCTURED INPUT DATA:\n" + redacted_payload})
+    response = None
+    last_error = ""
+    for attempt in range(2):  # one automatic retry on timeout / connection errors
+        try:
+            response = _client().chat.completions.create(
+                model=model_name(),
+                messages=messages,
+                **options,
+            )
+            break
+        except Exception as exc:
+            last_error = exc.__class__.__name__
+            if attempt == 0 and ("Timeout" in last_error or "Connection" in last_error):
+                continue
+            return None, flags, last_error
+    if response is None:
+        return None, flags, last_error or "no_response"
     content = response.choices[0].message.content or "{}"
     try:
         data = json.loads(content)
