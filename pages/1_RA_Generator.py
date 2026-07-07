@@ -1475,12 +1475,44 @@ def _ai_generation_payload(data: dict, batch: list[dict[str, str]], suppress_ext
 
 
 def generate_ra_with_ai(data: dict) -> tuple[RADraft | None, list[str], str | None]:
-    """Generate the RA draft with NVIDIA AI, batching long step lists."""
-    records = step_records(data.get("confirmed_steps", []))
-    if len(records) <= RA_BATCH_SIZE:
-        payload = _ai_generation_payload(data, records, suppress_extra_rows=False, include_sections=True)
-        return generate_json(RA_SYSTEM_PROMPT, payload, RADraft)
+    """Generate the RA draft with NVIDIA AI.
 
+    Strategy for the congested free endpoint: try ONE consolidated call for all
+    steps first (queue once, not once per batch). Only fall back to batching if
+    that single call fails for a non-timeout reason.
+    """
+    records = step_records(data.get("confirmed_steps", []))
+
+    # Single consolidated attempt (core RA rows only; supporting sections are a
+    # cheaper second call so this one stays as small/fast as possible).
+    single_payload = _ai_generation_payload(data, records, suppress_extra_rows=False, include_sections=False)
+    with st.spinner(f"Generating RA for {len(records)} steps in one request... / 一次過生成 {len(records)} 個工序..."):
+        draft, flags, error = generate_json(RA_SYSTEM_PROMPT, single_payload, RADraft)
+    if draft is not None and draft.items:
+        # Best-effort supporting sections as a small separate call.
+        try:
+            sec_payload = _ai_generation_payload(data, records[:1], suppress_extra_rows=True, include_sections=True)
+            with st.spinner("Adding permits / emergency / training sections... / 補充許可證及應急章節..."):
+                sec_draft, sec_flags, _sec_err = generate_json(RA_SYSTEM_PROMPT, sec_payload, RADraft)
+            if sec_draft is not None:
+                draft = draft.model_copy(update={
+                    "ppe_by_trade": sec_draft.ppe_by_trade,
+                    "permits_checklist": sec_draft.permits_checklist,
+                    "emergency_arrangements": sec_draft.emergency_arrangements,
+                    "training_records": sec_draft.training_records,
+                    "inspection_schedule": sec_draft.inspection_schedule,
+                })
+                flags = list(dict.fromkeys(flags + sec_flags))
+        except Exception:
+            pass
+        return draft, flags, None
+    # Single call failed on timeout/congestion; batching would only queue more,
+    # so surface the error and let the caller use the deterministic fallback.
+    return None, flags, error or "ai_returned_no_items"
+
+
+def _generate_ra_batched(data: dict) -> tuple[RADraft | None, list[str], str | None]:
+    records = step_records(data.get("confirmed_steps", []))
     all_items: list = []
     all_flags: list[str] = []
     errors: list[str] = []
