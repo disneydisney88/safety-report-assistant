@@ -54,7 +54,10 @@ Language rules (STRICT - single language output):
 Risk table rules:
 - Output valid JSON matching the RADraft schema only.
 - The items array must not be empty.
-- Include at least one risk row for every confirmed work step.
+- A proper RA is NOT one row per Method Statement sentence. When the confirmed steps are fine-grained checklist items (e.g. a testing & commissioning list), GROUP consecutive related steps into one key activity row (e.g. "380V power supply connection and isolation", "static load test of cage and material hoist", "limit switch, obstruction bar and slack rope test"). Aim for meaningful activities, each with its own matching hazard/cause/controls; do not duplicate near-identical rows.
+- When grouping, set source_step_id to the FIRST grouped step's id and join ALL grouped step texts into source_step_text_original so coverage can be traced.
+- Every confirmed step must be covered by exactly one row (its own or its group's); no step may be dropped.
+- Cite in legal_cop_reference ONLY statutes/CoPs relevant to this activity; never add unrelated references (e.g. bamboo scaffolding, confined space or gas welding rules on a BMU testing job) just because they appear in a catalogue or boilerplate.
 - A work step may have multiple hazards where appropriate. If one work step has multiple distinct hazards, create separate items/rows for each hazard instead of combining all hazards in one cell.
 - The final number of ordinary risk rows must be at least the number of confirmed work steps. If outdoor/weather or public interface applies, add separate extra rows near the end.
 - Every item must include source_step_id copied exactly from confirmed_step_records. If the step is translated, still keep the original source_step_id.

@@ -578,6 +578,33 @@ def _fallback_ra_zh(data: dict) -> RADraft:
     # language into the fallback rows.
     corpus_records = [r for r in (data.get("matched_library_records") or []) if r.get("source") == "master"]
     items = []
+    if bmu:
+        # Group consecutive steps that share the same BMU hazard into one
+        # activity row (proper RA structure instead of one row per sentence).
+        records = step_records(data.get("confirmed_steps", []))
+        groups: list[dict] = []
+        for record in records:
+            hazard_id = _bmu_hazard_id_for_step(record["step_text"])
+            if groups and groups[-1]["hazard_id"] == hazard_id:
+                groups[-1]["records"].append(record)
+            else:
+                groups.append({"hazard_id": hazard_id, "records": [record]})
+        for group in groups:
+            grouped = group["records"]
+            item = bmu_item_for_step(data, group["hazard_id"])
+            first, last = grouped[0], grouped[-1]
+            activity_name = BMU_REQUIRED_STEP_NAMES.get(group["hazard_id"], "")
+            joined_steps = "；".join(r["step_text"] for r in grouped)
+            if len(grouped) == 1:
+                item["work_step"] = first["step_text"]
+            else:
+                span = f"{first['source_step_id']}-{last['source_step_id']}"
+                item["work_step"] = (activity_name or first["step_text"]) + f"（涵蓋步驟 {span}）"
+            item["source_step_id"] = first["source_step_id"]
+            item["source_step_text_original"] = joined_steps
+            item["source_step_text_translated"] = joined_steps
+            items.append(item)
+        return RADraft(disclaimer=DISCLAIMER, overall_risk_level="待確認", items=items)
     for record in step_records(data.get("confirmed_steps", [])):
         if bmu:
             item = bmu_item_for_step(data, _bmu_hazard_id_for_step(record["step_text"]))
@@ -861,6 +888,16 @@ BMU_TC_HAZARDS = {
         "existing": "按檢查表逐項記錄測試結果 Pass / Fail；由客戶代表及工程師簽署確認",
         "additional": "負載測試證明由 RPE 簽發後方可使用；不合格項目停用，維修後重測",
     },
+    "BMU-TC-13": {
+        "ls": (3, 4),
+        "permit": "合資格人士檢查；檢查結果記錄於檢查表",
+        "category": "Pre-use Inspection",
+        "hazard": "使用前檢查不足，結構、連接位、路軌、鋼絲繩或外觀缺陷未被發現",
+        "cause": "檢查未涵蓋所有部件；檢查人員不合資格；缺陷未記錄及跟進",
+        "consequence": "帶缺陷設備投入測試，導致墮下、倒塌或機件飛脫",
+        "existing": "測試前檢查所有結構件、連接位、螺母、螺栓及銷釘；檢查吊籠、吊臂、吊機、行走小車、輪組、路軌及建築物連接位置；檢查外觀及鍍鋅／油漆層",
+        "additional": "發現鬆脫、損壞或不穩固部分即停止測試並維修後重檢；外觀損壞補油處理",
+    },
     "BMU-TC-12": {
         "ls": (2, 5),
         "permit": "救援安排簡介；對講機通訊；如人員進入吊籠須全身式安全帶及獨立救生繩",
@@ -884,6 +921,7 @@ BMU_REQUIRED_STEP_NAMES = {
     "BMU-TC-09": "Bypass 功能測試控制",
     "BMU-TC-10": "測試期間下方禁區及公眾範圍控制",
     "BMU-TC-12": "吊籠停電、卡阻或人員被困之緊急救援安排",
+    "BMU-TC-13": "使用前結構、路軌及外觀檢查",
 }
 
 
@@ -901,8 +939,10 @@ def _bmu_hazard_id_for_step(step_text: str) -> str:
     text = str(step_text or "").lower()
     if any(t in text for t in ["380v", "電源", "接駁", "電壓", "隔離掣", "匙掣", "power"]):
         return "BMU-TC-01"
-    if any(t in text for t in ["永久變形", "覆檢", "再次檢查", "結構件", "螺母", "螺栓", "銷釘"]):
+    if any(t in text for t in ["永久變形", "覆檢", "再次檢查"]):
         return "BMU-TC-04"
+    if "檢查" in text and any(t in text for t in ["結構件", "連接位", "螺母", "螺栓", "銷釘", "輪組", "路軌", "外觀", "補油", "鬆脫", "損壞", "鍍鋅"]):
+        return "BMU-TC-13"
     if any(t in text for t in ["負載", "swl", "375kg", "565kg", "load test", "靜態"]):
         return "BMU-TC-03"
     if any(t in text for t in ["行走小車", "小車", "trolley", "路軌"]):
@@ -1372,12 +1412,51 @@ RA_BATCH_SIZE = 4
 RA_TRANSLATION_BATCH_SIZE = 8
 
 
+def _slim_library_records(records: list[dict], limit: int = 6) -> list[dict]:
+    """Only the fields the AI needs, to keep the request inside the context window."""
+    slim = []
+    for record in records[:limit]:
+        slim.append(
+            {
+                "id": record.get("id", ""),
+                "category": record.get("category", ""),
+                "hazards": record.get("hazards", []),
+                "possible_consequences": record.get("possible_consequences", []),
+                "mandatory_controls": record.get("mandatory_controls", []),
+                "additional_controls": record.get("additional_controls", []),
+                "legal_ref_tags": record.get("legal_ref_tags", []),
+                "permit_required": record.get("permit_required", []),
+            }
+        )
+    return slim
+
+
 def _ai_generation_payload(data: dict, batch: list[dict[str, str]], suppress_extra_rows: bool, include_sections: bool = True) -> dict:
+    # Explicit whitelist instead of **data: the full session dict (keyword map,
+    # 12 full library records, pre-RA sheet, 12k-char MS text, and the hidden
+    # prompt itself) overflowed the model context and every batch returned
+    # BadRequestError. Everything the AI needs is either here or in the brief.
+    matrix = data.get("risk_matrix", {}) or {}
     return {
-        **data,
+        "activity": data.get("activity", ""),
+        "project": data.get("project", ""),
+        "location": data.get("location", ""),
+        "equipment": data.get("equipment", ""),
+        "confined_space": data.get("confined_space", "No"),
+        "workforce": data.get("workforce", ""),
+        "duration": data.get("duration", ""),
+        "report_language": data.get("report_language", "English"),
+        "language_instruction": data.get("language_instruction", ""),
+        "risk_matrix": {
+            "matrix_name": matrix.get("matrix_name", ""),
+            "likelihood_scale": matrix.get("likelihood_scale", []),
+            "severity_scale": matrix.get("severity_scale", []),
+            "risk_bands": matrix.get("risk_bands", []),
+        },
+        "matched_library_records": _slim_library_records(data.get("matched_library_records") or []),
         "confirmed_steps": [record["step_text"] for record in batch],
         "confirmed_step_records": batch,
-        "method_statement_text": data.get("method_statement_text", "")[:12000],
+        "method_statement_text": data.get("method_statement_text", "")[:6000],
         "hidden_report_prompt": build_hidden_report_prompt(data, batch, suppress_extra_rows, include_sections),
         "instruction": (
             "Prepare a professional Risk Assessment Report according to IEC 31010 and Hong Kong safety legislation / CoP. "
@@ -1592,7 +1671,7 @@ if submitted:
     if missing:
         st.error(UI["missing"] + ", ".join(missing))
     else:
-        provided_steps = split_steps(method_steps)
+        provided_steps = clean_extracted_steps(split_steps(method_steps), max_steps=60)
         ai_ms_extraction: MethodStatementExtraction | None = None
         ms_ai_error = ""
         if ms_text.strip() and not provided_steps:
@@ -1868,7 +1947,7 @@ if st.session_state.get("ra_stage") in {"confirm", "generated"}:
                     st.error(f"AI 連線失敗 / AI connection failed: {message} — 會改用本地範本。")
 
     if st.button(UI["generate"]):
-        confirmed_steps = split_steps(confirmed_text)
+        confirmed_steps = clean_extracted_steps(split_steps(confirmed_text), max_steps=60)
         data["confirmed_steps"] = confirmed_steps
         data["project"] = edited_project.strip() or "Risk Assessment Report"
         data["activity"] = edited_activity.strip() or "To be confirmed"
@@ -1964,7 +2043,16 @@ if st.session_state.get("ra_stage") == "generated" and "ra_draft" in st.session_
     if download_language != data.get("report_language"):
         st.info("Download headings and table labels will use the selected language. To rewrite the RA content itself in that language, select the language in Step 2 and Generate again with NVIDIA AI backend.")
     statutory_extra = []
-    pre_flags = (data.get("pre_ra") or {}).get("flags", {})
+    # Gate statutory references on the confirmed steps / activity themselves so
+    # MS boilerplate (e.g. a stray mention of welding rules) does not drag
+    # irrelevant statutes into an unrelated report.
+    from services.pre_ra import detect_flags as _detect_flags, load_master_db as _load_db
+    steps_corpus = " ".join([
+        data.get("activity", ""),
+        data.get("equipment", ""),
+        " ".join(data.get("confirmed_steps", [])),
+    ])
+    pre_flags = _detect_flags(steps_corpus, _load_db())
     if is_bmu_swp_work(data):
         statutory_extra += [
             "Cap. 59 工廠及工業經營條例 (Factories and Industrial Undertakings Ordinance)",
@@ -2002,7 +2090,7 @@ if st.session_state.get("ra_stage") == "generated" and "ra_draft" in st.session_
         "Report Language": download_language,
         "Generated By": (
             "NVIDIA AI" if data.get("ra_source") == "ai"
-            else "Local template 本地範本" + (f" ({data.get('ra_source_reason')})" if data.get("ra_source_reason") else "")
+            else "Local template 本地範本 — draft for review only 僅供覆核草擬"
         ),
         "Method Statement Source": data.get("method_statement_file") or data.get("steps_source", "-"),
         "Method Statement Extract": data.get("method_statement_text", ""),

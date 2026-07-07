@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any, Type
 
 import streamlit as st
@@ -133,7 +134,11 @@ def test_connection() -> tuple[bool, str]:
 
 def generate_json(system_prompt: str, payload: dict[str, Any], schema: Type[BaseModel], options_override: dict[str, Any] | None = None) -> tuple[BaseModel | None, list[str], str | None]:
     hidden_prompt = str(payload.get("hidden_report_prompt", "") or "")
-    raw_payload = json.dumps(payload, ensure_ascii=False, indent=2)
+    # The hidden prompt is sent as its own message; remove it from the payload
+    # dump so it is not transmitted twice (doubling input tokens caused
+    # BadRequestError context overflows on long Method Statements).
+    slim_payload = {k: v for k, v in payload.items() if k != "hidden_report_prompt"}
+    raw_payload = json.dumps(slim_payload, ensure_ascii=False, indent=2)
     redacted_payload, flags = redact_text(raw_payload)
     redacted_hidden_prompt, hidden_flags = redact_text(hidden_prompt)
     flags = list(dict.fromkeys(flags + hidden_flags))
@@ -158,7 +163,8 @@ def generate_json(system_prompt: str, payload: dict[str, Any], schema: Type[Base
             )
             break
         except Exception as exc:
-            last_error = exc.__class__.__name__
+            detail = re.sub(r"\s+", " ", str(exc))[:180]
+            last_error = f"{exc.__class__.__name__}: {detail}" if detail else exc.__class__.__name__
             if attempt == 0 and ("Timeout" in last_error or "Connection" in last_error):
                 continue
             return None, flags, last_error
