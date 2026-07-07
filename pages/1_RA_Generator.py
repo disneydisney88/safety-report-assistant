@@ -25,6 +25,7 @@ from services.language_tools import (
     rows_language_mismatch_count,
 )
 from services.nvidia_client import generate_json, has_api_key, model_name, test_connection
+from services.pre_ra import FLAG_LABELS, build_pre_ra_sheet, format_pre_ra_for_prompt
 from services.validators import MethodStatementExtraction, RADraft, RAItem
 
 st.set_page_config(page_title="RA Generator", layout="wide", initial_sidebar_state="collapsed")
@@ -143,6 +144,41 @@ def load_json(name: str, fallback):
 RISK_LIBRARY = load_json("risk_library.json", [])
 KEYWORD_MAP = load_json("keyword_map.json", {})
 LEGAL_REF_TAGS = load_json("legal_ref_tags.json", {})
+
+
+def _split_field(value, pattern=r"[;；]") -> list[str]:
+    return [part.strip() for part in re.split(pattern, str(value or "")) if part.strip()]
+
+
+def _master_hazard_records() -> list[dict]:
+    """Adapt the HK RA master database hazard library to the legacy record
+    shape used for matching and the AI payload."""
+    from services.pre_ra import load_master_db
+
+    records = []
+    for r in load_master_db().get("hazard_library", []):
+        records.append(
+            {
+                "source": "master",
+                "id": r.get("hazard_id", ""),
+                "category": r.get("category", ""),
+                "activity": r.get("work_activity", ""),
+                "trigger_keywords": _split_field(r.get("trigger_keywords"), r"[,，;；]"),
+                "hazards": [str(r.get("specific_hazard", ""))],
+                "possible_consequences": _split_field(r.get("possible_consequence"), r"[;；、]"),
+                "initial_risk": r.get("default_initial_risk", "MR"),
+                "mandatory_controls": _split_field(r.get("mandatory_controls")),
+                "additional_controls": _split_field(r.get("emergency_response")),
+                "legal_ref_tags": _split_field(r.get("legal_ref_tags")),
+                "permit_required": [str(r.get("permit_required", ""))] if r.get("permit_required") else [],
+                "competent_person_required": [],
+                "inspection_points": _split_field(r.get("inspection_records"), r"[;；,，]"),
+            }
+        )
+    return records
+
+
+RISK_LIBRARY = RISK_LIBRARY + _master_hazard_records()
 RISK_MATRICES = load_json("risk_matrix.json", {"matrices": {}}).get("matrices", {})
 JURISDICTION_PROFILES = load_json("jurisdiction_profiles.json", {"jurisdiction_profiles": []}).get("jurisdiction_profiles", [])
 
@@ -365,7 +401,7 @@ def matched_library_records(activity: str, equipment: str, steps: list[str], con
         if record_id not in seen:
             unique.append(record)
             seen.add(record_id)
-    return unique[:8]
+    return unique[:12]
 
 
 def infer_steps(activity: str, confined_space: str) -> list[str]:
@@ -525,7 +561,10 @@ def fallback_ra(data: dict) -> RADraft:
     default_likelihood = likelihood_scale[1] if len(likelihood_scale) > 1 else {"code": "P2", "score": 2, "label_en": "Unlikely"}
     step_ids = {record["step_text"]: record["source_step_id"] for record in step_records(data.get("confirmed_steps", []))}
     for step in data["confirmed_steps"]:
-        source_records = library_records or [{}]
+        # English fallback keeps to the legacy vetted English records; master-DB
+        # records are mixed-language and reserved for the AI payload.
+        legacy_records = [r for r in library_records if r.get("source") != "master"]
+        source_records = legacy_records or [{}]
         for record in source_records[:2]:
             hazards = record.get("hazards") or ["Task-specific hazard to be verified against site condition"]
             consequences = record.get("possible_consequences") or ["Personal injury, property damage or unsafe work continuation"]
@@ -1034,6 +1073,8 @@ def build_hidden_report_prompt(data: dict, step_batch: list[dict[str, str]] | No
                 else "None provided. Note in remarks that project / site in-house safety rules (if any) shall be checked and take precedence where stricter."
             ),
             "",
+            format_pre_ra_for_prompt(data["pre_ra"]) if data.get("pre_ra") else "",
+            "",
             "Return the completed RADraft JSON only. Do not explain the report outside JSON.",
         ]
     )
@@ -1276,7 +1317,7 @@ if submitted:
                     "report_language": output_language,
                     "user_activity": activity.strip(),
                     "user_project_name": location.strip(),
-                    "method_statement_text": ms_text[:12000],
+                    "method_statement_text": ms_text[:9000],
                     "instructions": [
                         "Extract title separately from work steps.",
                         "Work steps must be sequential physical work activities only.",
@@ -1284,7 +1325,14 @@ if submitted:
                         "If the document contains a section named 拆棚工序 / construction sequence / work procedure, use that section as priority.",
                     ],
                 }
-                extracted, _flags, ms_ai_error = generate_json(MS_EXTRACTION_SYSTEM_PROMPT, extraction_payload, MethodStatementExtraction)
+                # Smaller output budget keeps the extraction call fast enough to
+                # avoid APITimeoutError on long Method Statements.
+                extracted, _flags, ms_ai_error = generate_json(
+                    MS_EXTRACTION_SYSTEM_PROMPT,
+                    extraction_payload,
+                    MethodStatementExtraction,
+                    options_override={"max_tokens": 3072},
+                )
                 ai_ms_extraction = extracted if isinstance(extracted, MethodStatementExtraction) else None
 
         title_candidates = [
@@ -1311,6 +1359,11 @@ if submitted:
         project_value = project.strip() or (ai_document_title if ai_document_title and ai_document_title != "To be confirmed" else (ms_file_name.rsplit(".", 1)[0] if ms_file_name else "Risk Assessment Report"))
         steps = provided_steps or ms_steps or infer_steps(activity_value, confined_space)
         library_matches = matched_library_records(activity_value, equipment_value, steps, confined_space)
+        pre_ra_sheet = build_pre_ra_sheet(
+            ms_text,
+            steps,
+            {"activity": activity_value, "equipment": equipment_value, "location": location_value, "confined_space": confined_space},
+        )
         st.session_state["ra_input"] = {
             "has_ms": has_ms,
             "activity": activity_value,
@@ -1336,6 +1389,7 @@ if submitted:
             "confirmed_steps": steps,
             "matched_library_records": library_matches,
             "keyword_map": KEYWORD_MAP,
+            "pre_ra": pre_ra_sheet,
             "use_ai_backend": True,
         }
         st.session_state["ra_stage"] = "confirm"
@@ -1430,6 +1484,80 @@ if st.session_state.get("ra_stage") in {"confirm", "generated"}:
     if data["confined_space"] == "Yes":
         st.warning(UI["confined_warning"])
 
+    # ---- Pre-RA Data Extraction Sheet -------------------------------------
+    # The user confirms the factual basis (flags, plant, permits, competency,
+    # environment, emergency, missing info) BEFORE the RA is generated.
+    st.subheader("Pre-RA Data Extraction Sheet / 生成前事實基礎確認")
+    st.caption(
+        "Auto-detected from the Method Statement and inputs. Please review and correct - "
+        "the RA is generated from these confirmed facts. / 由施工方法書及輸入自動偵測，請覆核修正；報告會以確認後的資料生成。"
+    )
+    pre_ra_auto = data.get("pre_ra") or {}
+    flags_auto = pre_ra_auto.get("flags", {})
+    flags_df = pd.DataFrame(
+        {
+            "Flag / 高危項目": [FLAG_LABELS.get(m, m) for m in flags_auto],
+            "Status": [flags_auto[m] for m in flags_auto],
+        }
+    )
+    edited_flags_df = st.data_editor(
+        flags_df,
+        column_config={"Status": st.column_config.SelectboxColumn("Status", options=["Yes", "No", "Unknown"], required=True)},
+        disabled=["Flag / 高危項目"],
+        hide_index=True,
+        width="stretch",
+        key="pre_ra_flags_editor",
+    )
+    permits_auto = pre_ra_auto.get("permits", [])
+    permits_df = pd.DataFrame(permits_auto) if permits_auto else pd.DataFrame(columns=["permit_name", "issued_by", "status"])
+    display_cols = [col for col in ["permit_name", "issued_by", "status"] if col in permits_df.columns]
+    edited_permits_df = st.data_editor(
+        permits_df[display_cols] if display_cols else permits_df,
+        num_rows="dynamic",
+        hide_index=True,
+        width="stretch",
+        key="pre_ra_permits_editor",
+        column_config={
+            "permit_name": st.column_config.TextColumn("Permit / certificate / 許可證"),
+            "issued_by": st.column_config.TextColumn("Issued by / 簽發人"),
+            "status": st.column_config.SelectboxColumn("Status", options=["To be confirmed", "Required", "Not required"]),
+        },
+    )
+    col_a, col_b = st.columns(2)
+    plant_text = col_a.text_area(
+        "Plant / tools / materials / 機械工具物料",
+        "\n".join(pre_ra_auto.get("plant_tools", [])),
+        height=120,
+        key="pre_ra_plant",
+    )
+    competency_text = col_b.text_area(
+        "Competency / workforce required / 所需資格及人手",
+        "\n".join(pre_ra_auto.get("competency", [])),
+        height=120,
+        key="pre_ra_competency",
+    )
+    environment_text = col_a.text_area(
+        "Work environment / interfaces / 工作環境及介面",
+        "\n".join(pre_ra_auto.get("environment", [])),
+        height=110,
+        key="pre_ra_environment",
+    )
+    emergency_text = col_b.text_area(
+        "Emergency / rescue needs / 應急救援需要",
+        "\n".join(pre_ra_auto.get("emergency", [])),
+        height=110,
+        key="pre_ra_emergency",
+    )
+    missing_auto = pre_ra_auto.get("missing_info", [])
+    if missing_auto:
+        st.warning("Missing information to confirm / 待確認資料：\n" + "\n".join(f"- {item}" for item in missing_auto))
+    missing_text = st.text_area(
+        "Missing information / assumptions to verify on site / 缺漏資料（會於報告註明待工地核實）",
+        "\n".join(missing_auto),
+        height=100,
+        key="pre_ra_missing",
+    )
+
     use_ai_backend = st.checkbox(
         "Use NVIDIA AI backend",
         value=bool(data.get("use_ai_backend", True)),
@@ -1466,6 +1594,26 @@ if st.session_state.get("ra_stage") in {"confirm", "generated"}:
         data["report_language"] = edited_output_language
         data["language_instruction"] = LANGUAGE_INSTRUCTIONS[edited_output_language]
         data["use_ai_backend"] = use_ai_backend
+        # Persist the user-confirmed Pre-RA factual basis.
+        label_to_module = {label: module for module, label in FLAG_LABELS.items()}
+        confirmed_flags = {}
+        for _, flag_row in edited_flags_df.iterrows():
+            module = label_to_module.get(str(flag_row.get("Flag / 高危項目", "")))
+            if module:
+                confirmed_flags[module] = str(flag_row.get("Status", "Unknown"))
+        data["pre_ra"] = {
+            "flags": confirmed_flags or (data.get("pre_ra") or {}).get("flags", {}),
+            "plant_tools": [line.strip() for line in plant_text.splitlines() if line.strip()],
+            "permits": [
+                {"permit_name": str(p.get("permit_name", "")), "issued_by": str(p.get("issued_by", "")), "status": str(p.get("status", "To be confirmed"))}
+                for p in edited_permits_df.to_dict("records")
+                if str(p.get("permit_name", "")).strip() and str(p.get("status", "")) != "Not required"
+            ],
+            "competency": [line.strip() for line in competency_text.splitlines() if line.strip()],
+            "environment": [line.strip() for line in environment_text.splitlines() if line.strip()],
+            "emergency": [line.strip() for line in emergency_text.splitlines() if line.strip()],
+            "missing_info": [line.strip() for line in missing_text.splitlines() if line.strip()],
+        }
         flags = []
         ra_source = "local"
         ra_source_reason = ""

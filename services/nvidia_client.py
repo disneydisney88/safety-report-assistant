@@ -131,7 +131,7 @@ def test_connection() -> tuple[bool, str]:
         return False, exc.__class__.__name__
 
 
-def generate_json(system_prompt: str, payload: dict[str, Any], schema: Type[BaseModel]) -> tuple[BaseModel | None, list[str], str | None]:
+def generate_json(system_prompt: str, payload: dict[str, Any], schema: Type[BaseModel], options_override: dict[str, Any] | None = None) -> tuple[BaseModel | None, list[str], str | None]:
     hidden_prompt = str(payload.get("hidden_report_prompt", "") or "")
     raw_payload = json.dumps(payload, ensure_ascii=False, indent=2)
     redacted_payload, flags = redact_text(raw_payload)
@@ -140,6 +140,9 @@ def generate_json(system_prompt: str, payload: dict[str, Any], schema: Type[Base
     if not has_api_key():
         return None, flags, "missing_api_key"
 
+    options = generation_options()
+    if options_override:
+        options.update(options_override)
     try:
         messages = [{"role": "system", "content": system_prompt + "\nReturn valid JSON only."}]
         if redacted_hidden_prompt:
@@ -148,7 +151,7 @@ def generate_json(system_prompt: str, payload: dict[str, Any], schema: Type[Base
         response = _client().chat.completions.create(
             model=model_name(),
             messages=messages,
-            **generation_options(),
+            **options,
         )
     except Exception as exc:
         return None, flags, exc.__class__.__name__
