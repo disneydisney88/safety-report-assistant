@@ -149,11 +149,32 @@ def load_master_db() -> dict[str, Any]:
 def _split_keywords(*fields: str) -> list[str]:
     tokens: list[str] = []
     for field in fields:
-        for token in re.split(r"[、,，/;；\s]+", str(field or "")):
+        for token in re.split(r"[、,，/;；]+", str(field or "")):
             token = token.strip().lower()
             if len(token) >= 2:
                 tokens.append(token)
     return tokens
+
+
+def _token_hit(token: str, lower_text: str) -> bool:
+    """CJK tokens match by substring; ASCII tokens require word boundaries so
+    'ELS' cannot hide inside 'levels' or 'panels' and flag foundation works."""
+    if not token:
+        return False
+    if re.search(r"[一-鿿]", token):
+        return token in lower_text
+    if len(token) < 3:
+        return False
+    return re.search(r"(?<![a-z0-9])" + re.escape(token) + r"(?![a-z0-9])", lower_text) is not None
+
+
+# Synonyms the master DB keyword modules do not cover yet (e.g. steps say
+# 電源/380V rather than 用電/電纜).
+EXTRA_MODULE_KEYWORDS = {
+    "electrical": ["電源", "電壓", "供電", "380v", "220v", "110v", "隔離掣", "power supply", "isolator"],
+    "lifting": ["吊籠", "物料吊機", "hoist"],
+    "work_at_height": ["吊籠", "bmu"],
+}
 
 
 def detect_flags(text: str, db: dict[str, Any]) -> dict[str, str]:
@@ -165,7 +186,8 @@ def detect_flags(text: str, db: dict[str, Any]) -> dict[str, str]:
         if module not in flags:
             continue
         tokens = _split_keywords(entry.get("keywords_cn", ""), entry.get("keywords_en", ""))
-        if any(token in lower for token in tokens):
+        tokens += [t.lower() for t in EXTRA_MODULE_KEYWORDS.get(module, [])]
+        if any(_token_hit(token, lower) for token in tokens):
             flags[module] = "Yes"
     return flags
 
@@ -176,7 +198,7 @@ def detect_permits(text: str, db: dict[str, Any]) -> list[dict[str, str]]:
     permits: list[dict[str, str]] = []
     for rule in db.get("permit_rules", []):
         tokens = _split_keywords(rule.get("trigger_condition", ""))
-        if any(token in lower for token in tokens):
+        if any(_token_hit(token, lower) for token in tokens):
             permits.append(
                 {
                     "permit_name": str(rule.get("permit_name", "")),
@@ -252,26 +274,30 @@ def missing_information(text: str, flags: dict[str, str]) -> list[str]:
 def build_pre_ra_sheet(ms_text: str, steps: list[str], data: dict[str, Any], db: dict[str, Any] | None = None) -> dict[str, Any]:
     """Assemble the Pre-RA Data Extraction Sheet (deterministic baseline)."""
     db = db if db is not None else load_master_db()
-    corpus = " ".join(
+    # Flags and permits come from the user's own activity / equipment / steps.
+    # The full MS text is deliberately excluded here: MS boilerplate safety
+    # sections (no-smoking, welding bans, confined-space notices) otherwise
+    # flag hot work / confined space / scaffolding on unrelated jobs.
+    steps_corpus = " ".join(
         [
             str(data.get("activity", "")),
             str(data.get("equipment", "")),
             str(data.get("location", "")),
             " ".join(steps or []),
-            str(ms_text or "")[:12000],
         ]
     )
-    flags = detect_flags(corpus, db)
+    full_corpus = steps_corpus + " " + str(ms_text or "")[:12000]
+    flags = detect_flags(steps_corpus, db)
     if str(data.get("confined_space", "No")) == "Yes":
         flags["confined_space"] = "Yes"
     return {
         "flags": flags,
-        "plant_tools": detect_plant_tools(corpus),
-        "permits": detect_permits(corpus, db),
+        "plant_tools": detect_plant_tools(full_corpus),
+        "permits": detect_permits(steps_corpus, db),
         "competency": competency_for_flags(flags),
-        "environment": detect_environment(corpus),
+        "environment": detect_environment(full_corpus),
         "emergency": emergency_for_flags(flags),
-        "missing_info": missing_information(corpus, flags),
+        "missing_info": missing_information(full_corpus, flags),
     }
 
 

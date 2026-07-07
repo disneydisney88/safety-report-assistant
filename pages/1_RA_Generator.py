@@ -1674,7 +1674,7 @@ if submitted:
         provided_steps = clean_extracted_steps(split_steps(method_steps), max_steps=60)
         ai_ms_extraction: MethodStatementExtraction | None = None
         ms_ai_error = ""
-        if ms_text.strip() and not provided_steps:
+        if ms_text.strip():
             with st.spinner("AI is reading the Method Statement and separating title, headings and real work steps... / AI 正在分析施工方法書，分開標題、章節及真正工序..."):
                 extraction_payload = {
                     "file_name": ms_file_name,
@@ -1728,6 +1728,9 @@ if submitted:
             steps,
             {"activity": activity_value, "equipment": equipment_value, "location": location_value, "confined_space": confined_space},
         )
+        ai_plant = str(getattr(ai_ms_extraction, "plant_equipment", "") or "").strip()
+        if ai_plant and ai_plant not in pre_ra_sheet["plant_tools"]:
+            pre_ra_sheet["plant_tools"].append(ai_plant)
         st.session_state["ra_input"] = {
             "has_ms": has_ms,
             "activity": activity_value,
