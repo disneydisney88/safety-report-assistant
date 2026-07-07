@@ -970,6 +970,10 @@ def build_ra_docx(report: dict[str, Any], ra_rows: list[dict[str, Any]], matrix:
     _add_heading(doc, lbl["requirements"], level=2)
     for item in static["requirements"]:
         doc.add_paragraph(item, style="List Bullet")
+    # Activity-specific statutory references (e.g. Cap. 59AC + SWP CoP + Form
+    # 1/2/3 for BMU work) supplied by the app based on the confirmed flags.
+    for item in report.get("Statutory Extra") or []:
+        doc.add_paragraph(str(item), style="List Bullet")
 
     _add_heading(doc, lbl["matrix"], level=2)
     doc.add_paragraph(static["matrix_body"])

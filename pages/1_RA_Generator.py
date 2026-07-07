@@ -752,6 +752,8 @@ BMU_TC_PERMIT = "受訓吊船 / BMU 操作員；合資格人士 / 合資格檢�
 
 BMU_TC_HAZARDS = {
     "BMU-TC-01": {
+        "ls": (3, 5),
+        "permit": "合資格電工接駁及檢查；LOTO / 隔離簡介；絕緣工具；漏電保護 (ELCB / RCD) 已確認",
         "category": "Electrical",
         "hazard": "接駁 380V 電源時觸電、電纜受損或接駁錯誤",
         "cause": "未經合資格電工接駁；無 ELCB / RCD 保護；未執行隔離 / LOTO；電纜接觸活動部件",
@@ -760,6 +762,8 @@ BMU_TC_HAZARDS = {
         "additional": "測試前後執行 power on / off 控制；設 LOTO / 隔離安排；測試緊急停止功能；電纜及接駁每日使用前檢查",
     },
     "BMU-TC-02": {
+        "ls": (3, 4),
+        "permit": "受訓吊船 / BMU 操作員；合資格人士監督",
         "category": "Mechanical",
         "hazard": "BMU 意外移動或未經授權操作",
         "cause": "控制掣未隔離；匙掣未受控；無專人操作",
@@ -768,6 +772,8 @@ BMU_TC_HAZARDS = {
         "additional": "測試次序按 MS 執行；非測試人員退出範圍；控制箱掛牌警示",
     },
     "BMU-TC-03": {
+        "ls": (3, 5),
+        "permit": "負載測試由 RPE 見證及簽發證明；經檢驗及有證書的測試重物；合資格檢驗員",
         "category": "Load Test",
         "hazard": "負載測試期間吊鉤、吊具、鋼絲繩、吊機或錨固失效導致測試重物墮下",
         "cause": "吊具未經檢驗；超載；測試重物未繫穩",
@@ -776,6 +782,8 @@ BMU_TC_HAZARDS = {
         "additional": "負載測試由 RPE 見證及簽發證明；靜態測試期間不得作任何運行動作；只限指定操作員；緊急停止可隨時使用；完成測試前不得使用設備",
     },
     "BMU-TC-04": {
+        "ls": (3, 5),
+        "permit": "合資格檢驗員 / RPE 覆檢及簽發證明",
         "category": "Load Test",
         "hazard": "負載測試導致吊籠傾斜、結構變形或 BMU 失穩",
         "cause": "測試重量分佈不均；結構、連接位、螺母、螺栓或銷釘鬆脫",
@@ -784,6 +792,8 @@ BMU_TC_HAZARDS = {
         "additional": "負載測試後再次檢查結構有否永久變形或不安全情況；發現變形即停用並由工程師檢查；記錄測試結果並簽署確認",
     },
     "BMU-TC-05": {
+        "ls": (3, 4),
+        "permit": "受訓吊船 / BMU 操作員；測試範圍設看守員",
         "category": "Mechanical",
         "hazard": "天台行走小車行走時撞人、撞路軌末端或夾傷",
         "cause": "行走限位掣失效；路軌有異物；附近有人",
@@ -792,6 +802,8 @@ BMU_TC_HAZARDS = {
         "additional": "測試行走限位掣，確認到達路軌末端前停止；異常聲音或震動即停機檢查",
     },
     "BMU-TC-06": {
+        "ls": (3, 4),
+        "permit": "受訓吊船 / BMU 操作員；專人指揮",
         "category": "Mechanical",
         "hazard": "吊臂旋轉 / 伸縮時掃過範圍撞人撞物或夾傷",
         "cause": "旋轉制動失效；超出安全範圍；旋轉限位失效",
@@ -800,6 +812,8 @@ BMU_TC_HAZARDS = {
         "additional": "測試旋轉限位掣；檢查有否異常聲音或震動；確認吊臂頭旋轉功能正常",
     },
     "BMU-TC-07": {
+        "ls": (3, 5),
+        "permit": "受訓吊船 / BMU 操作員；鋼絲繩及吊機使用前檢查記錄",
         "category": "Mechanical",
         "hazard": "吊籠升降失控、鋼絲繩異常或雙吊機不同步導致吊籠傾斜",
         "cause": "吊機故障；鋼絲繩損耗；同步功能失效",
@@ -808,6 +822,8 @@ BMU_TC_HAZARDS = {
         "additional": "確認緊急停止及手動下降功能；異常即停止測試並檢查",
     },
     "BMU-TC-08": {
+        "ls": (3, 5),
+        "permit": "受訓操作員；合資格人士監督測試；檢查表記錄",
         "category": "Safety Device",
         "hazard": "限位掣失效導致超程 (over-travel)",
         "cause": "上限位、下方障礙物限位桿或鬆繩限位未測試或失效",
@@ -816,6 +832,8 @@ BMU_TC_HAZARDS = {
         "additional": "鬆繩限位測試確認主鋼絲繩失去張力時停止下降；限位失效即停用設備並維修後重測",
     },
     "BMU-TC-09": {
+        "ls": (2, 5),
+        "permit": "Bypass 只限專人操作及全程監督；測試後復原並記錄",
         "category": "Safety Device",
         "hazard": "Bypass 按鈕被誤用令安全裝置失效",
         "cause": "無專人控制 bypass；測試後未復原",
@@ -824,6 +842,8 @@ BMU_TC_HAZARDS = {
         "additional": "測試完成後確認 bypass 復原；記錄 bypass 使用情況",
     },
     "BMU-TC-10": {
+        "ls": (3, 5),
+        "permit": "看守員 / banksman 簡介；工具繫繩；下方禁區已設置",
         "category": "Falling Object",
         "hazard": "工具或部件由高處墮下擊中下方人員或公眾",
         "cause": "下方未設禁區；工具物料未繫穩；公眾通道未受保護",
@@ -831,7 +851,19 @@ BMU_TC_HAZARDS = {
         "existing": "下方及周邊設禁區、圍封及警告標誌；工具繫繩；小型部件放置工具袋",
         "additional": "鄰近公眾通道加設看守員；吊運及測試避開人流高峰",
     },
+    "BMU-TC-11": {
+        "ls": (2, 4),
+        "permit": "測試結果由工程師及客戶代表簽署；RPE 簽發負載測試證明",
+        "category": "Documentation",
+        "hazard": "測試結果未記錄、證明文件不全或不合格設備未停用",
+        "cause": "檢查表未逐項記錄 Pass / Fail；未經客戶代表及工程師簽署；負載測試證明未簽發",
+        "consequence": "未經驗證設備投入使用，釀成事故",
+        "existing": "按檢查表逐項記錄測試結果 Pass / Fail；由客戶代表及工程師簽署確認",
+        "additional": "負載測試證明由 RPE 簽發後方可使用；不合格項目停用，維修後重測",
+    },
     "BMU-TC-12": {
+        "ls": (2, 5),
+        "permit": "救援安排簡介；對講機通訊；如人員進入吊籠須全身式安全帶及獨立救生繩",
         "category": "Emergency",
         "hazard": "吊籠停電、卡住或人員被困",
         "cause": "無緊急下降程序；無通訊安排；無救援計劃",
@@ -842,6 +874,17 @@ BMU_TC_HAZARDS = {
 }
 
 BMU_REQUIRED_HAZARD_IDS = ["BMU-TC-03", "BMU-TC-04", "BMU-TC-08", "BMU-TC-09", "BMU-TC-10", "BMU-TC-12"]
+
+# Dedicated work-step names for appended BMU coverage rows so no row carries a
+# blank or mismatched step description.
+BMU_REQUIRED_STEP_NAMES = {
+    "BMU-TC-03": "吊籠及物料吊機靜態負載測試",
+    "BMU-TC-04": "負載測試後結構檢查及簽發證明",
+    "BMU-TC-08": "限位掣及安全裝置測試",
+    "BMU-TC-09": "Bypass 功能測試控制",
+    "BMU-TC-10": "測試期間下方禁區及公眾範圍控制",
+    "BMU-TC-12": "吊籠停電、卡阻或人員被困之緊急救援安排",
+}
 
 
 def is_bmu_swp_work(data: dict) -> bool:
@@ -858,10 +901,10 @@ def _bmu_hazard_id_for_step(step_text: str) -> str:
     text = str(step_text or "").lower()
     if any(t in text for t in ["380v", "電源", "接駁", "電壓", "隔離掣", "匙掣", "power"]):
         return "BMU-TC-01"
+    if any(t in text for t in ["永久變形", "覆檢", "再次檢查", "結構件", "螺母", "螺栓", "銷釘"]):
+        return "BMU-TC-04"
     if any(t in text for t in ["負載", "swl", "375kg", "565kg", "load test", "靜態"]):
         return "BMU-TC-03"
-    if any(t in text for t in ["永久變形", "覆檢", "結構件", "螺母", "螺栓", "銷釘"]):
-        return "BMU-TC-04"
     if any(t in text for t in ["行走小車", "小車", "trolley", "路軌"]):
         return "BMU-TC-05"
     if any(t in text for t in ["旋轉", "slew", "吊臂"]):
@@ -874,14 +917,15 @@ def _bmu_hazard_id_for_step(step_text: str) -> str:
         return "BMU-TC-07"
     if any(t in text for t in ["緊急停止", "emergency stop", "安全裝置"]):
         return "BMU-TC-08"
-    if any(t in text for t in ["簽署", "記錄", "檢查表", "rpe", "見證"]):
-        return "BMU-TC-04"
+    if any(t in text for t in ["簽署", "記錄", "檢查表", "確認測試結果"]):
+        return "BMU-TC-11"
     return "BMU-TC-02"
 
 
 def bmu_item_for_step(data: dict, hazard_id: str) -> dict:
     matrix = data.get("risk_matrix", {})
     info = BMU_TC_HAZARDS.get(hazard_id, BMU_TC_HAZARDS["BMU-TC-02"])
+    likelihood, severity = info.get("ls", (3, 5))
     return {
         "hazard_id": hazard_id,
         "hazard_category": f"BMU T&C - {info['category']}",
@@ -889,12 +933,14 @@ def bmu_item_for_step(data: dict, hazard_id: str) -> dict:
         "cause_of_hazard": info["cause"],
         "possible_consequence": info["consequence"],
         "persons_at_risk": "測試人員、操作員、下方工人及附近人士",
-        "initial_risk_rating": _rating_from_matrix(matrix, 3, 5),
+        "initial_risk_rating": _rating_from_matrix(matrix, likelihood, severity),
         "existing_control_measures": info["existing"],
         "additional_control_measures_required": info["additional"],
-        "residual_risk_rating": _rating_from_matrix(matrix, 1, 5),
+        "residual_risk_rating": _rating_from_matrix(matrix, 1, severity),
         "legal_cop_reference": BMU_TC_LEGAL,
-        "permit_certificate_competent_person_required": BMU_TC_PERMIT,
+        # Row-specific competency (RPE only on load-test rows, electrician on
+        # power rows etc.) instead of one repeated block on every row.
+        "permit_certificate_competent_person_required": info.get("permit", BMU_TC_PERMIT),
         "inspection_monitoring_points": "按檢查表逐項記錄 Pass / Fail；測試前後檢查；異常即停機",
         "responsible_person": "測試工程師 / 合資格人士 / 安全主任",
         "remarks_items_to_be_confirmed": "測試結果須由客戶代表及工程師簽署確認；證明文件齊備前不得使用",
@@ -1128,7 +1174,9 @@ def ensure_required_ra_rows(data: dict, rows: list[dict[str, str]]) -> list[dict
                 display["Source Step ID"] = source.get("source_step_id", "")
                 display["Source Step Original"] = source.get("step_text", "")
                 display["Source Step Translated"] = source.get("step_text", "")
-                display["Work Step"] = "BMU 測試及調試整體控制"
+                display["Work Step"] = BMU_REQUIRED_STEP_NAMES.get(hazard_id, "BMU 測試及調試整體控制")
+                display["Source Step Original"] = display["Work Step"]
+                display["Source Step Translated"] = display["Work Step"]
                 rows.append(display)
                 existing_hazard_ids.add(hazard_id)
 
@@ -1915,6 +1963,31 @@ if st.session_state.get("ra_stage") == "generated" and "ra_draft" in st.session_
     )
     if download_language != data.get("report_language"):
         st.info("Download headings and table labels will use the selected language. To rewrite the RA content itself in that language, select the language in Step 2 and Generate again with NVIDIA AI backend.")
+    statutory_extra = []
+    pre_flags = (data.get("pre_ra") or {}).get("flags", {})
+    if is_bmu_swp_work(data):
+        statutory_extra += [
+            "Cap. 59 工廠及工業經營條例 (Factories and Industrial Undertakings Ordinance)",
+            "Cap. 59AC 吊船規例 (Factories and Industrial Undertakings (Suspended Working Platforms) Regulation)",
+            "勞工處《吊船安全使用及操作工作守則》(Code of Practice for Safe Use and Operation of Suspended Working Platforms)",
+            "工廠及工業經營(電力)規例 (F&IU (Electricity) Regulations)",
+            "SWP Form 1 / Form 2 / Form 3 — 每週檢查、徹底檢驗及負載測試證明",
+            "如涉及物料吊機：Cap. 59J LALG 規例檢驗及證書",
+        ]
+    if pre_flags.get("scaffolding") == "Yes" or is_scaffold_dismantling_work(data):
+        statutory_extra += [
+            "Cap. 59I 建築地盤(安全)規例 — 棚架檢查及表格五 (Form 5)",
+            "《竹棚架工作安全守則》(Code of Practice for Bamboo Scaffolding Safety)",
+        ]
+    if pre_flags.get("lifting") == "Yes":
+        statutory_extra.append("Cap. 59J 起重機械及起重裝置規例 (LALG) — 檢驗證書 Form 3 / 4 / 5 / 7")
+    if pre_flags.get("confined_space") == "Yes" or data.get("confined_space") == "Yes":
+        statutory_extra.append("Cap. 59AE 密閉空間規例及《密閉空間工作安全守則》")
+    if pre_flags.get("electrical") == "Yes" and not is_bmu_swp_work(data):
+        statutory_extra.append("工廠及工業經營(電力)規例 (F&IU (Electricity) Regulations)")
+    if pre_flags.get("hot_work") == "Yes":
+        statutory_extra.append("《氣體焊接及火焰切割安全守則》及消防安全要求")
+
     report = {
         "title": data["project"],
         "Project": data["project"],
@@ -1933,6 +2006,7 @@ if st.session_state.get("ra_stage") == "generated" and "ra_draft" in st.session_
         ),
         "Method Statement Source": data.get("method_statement_file") or data.get("steps_source", "-"),
         "Method Statement Extract": data.get("method_statement_text", ""),
+        "Statutory Extra": statutory_extra,
         "Confirmed Steps": data.get("confirmed_steps", []),
     }
 
