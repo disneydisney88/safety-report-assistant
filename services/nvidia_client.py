@@ -127,9 +127,27 @@ def test_connection() -> tuple[bool, str]:
             max_tokens=64,
         )
         content = response.choices[0].message.content or ""
-        return True, "connected" if content else "connected_empty_response"
+        return True, f"connected ({model_name()})" if content else "connected_empty_response"
     except Exception as exc:
-        return False, exc.__class__.__name__
+        detail = re.sub(r"\s+", " ", str(exc))[:220]
+        # Diagnose the most common cause of a 400 here: the configured model id
+        # does not exist on the NVIDIA endpoint. List what the key can access.
+        hint = ""
+        try:
+            available = [m.id for m in _client().models.list().data]
+            if model_name() in available:
+                hint = f" | model '{model_name()}' exists on the endpoint"
+            else:
+                similar = [m for m in available if any(t in m.lower() for t in ("glm", "z-ai", "zai", "zhipu"))][:6]
+                fallbacks = [m for m in available if "instruct" in m.lower()][:3]
+                suggestion = ", ".join(similar or fallbacks) or "see build.nvidia.com model catalog"
+                hint = (
+                    f" | model '{model_name()}' NOT FOUND on this endpoint. "
+                    f"Set NVIDIA_MODEL in Streamlit Secrets to a valid id, e.g.: {suggestion}"
+                )
+        except Exception:
+            pass
+        return False, f"{exc.__class__.__name__}: {detail}{hint}"
 
 
 def generate_json(system_prompt: str, payload: dict[str, Any], schema: Type[BaseModel], options_override: dict[str, Any] | None = None) -> tuple[BaseModel | None, list[str], str | None]:
