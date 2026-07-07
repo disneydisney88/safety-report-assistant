@@ -1497,9 +1497,10 @@ def generate_ra_with_ai(data: dict) -> tuple[RADraft | None, list[str], str | No
             break
         progress.progress((index - 1) / len(batches), text=f"Batch {index}/{len(batches)}... 已用 {elapsed}s / AI time budget 300s")
         # Supporting sections (permits, emergency, training, inspection) are
-        # requested once, on the final batch, then attached to the merged draft.
-        is_last = index == len(batches)
-        payload = _ai_generation_payload(data, batch, suppress_extra_rows=True, include_sections=is_last)
+        # requested on the FIRST batch, while the full time budget remains, so
+        # they are not lost if later batches time out; the extra output is not
+        # stacked onto a batch that also has to finish the last steps.
+        payload = _ai_generation_payload(data, batch, suppress_extra_rows=True, include_sections=(index == 1))
         draft, flags, error = generate_json(RA_SYSTEM_PROMPT, payload, RADraft)
         all_flags.extend(flags)
         if error:
