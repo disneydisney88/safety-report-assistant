@@ -258,7 +258,7 @@ STEP_ACTION_TERMS = [
 
 # Suffixes that mark a document title or section heading when the line is short
 # and has no action verb, e.g. 拆棚施工方案 / 安全程序及措施 / 工地要求.
-_HEADING_SUFFIXES = ("方案", "方法書", "程序", "措施", "安排", "要求", "守則", "規定", "清單", "注意事項", "工序")
+_HEADING_SUFFIXES = ("方案", "方法書", "程序", "措施", "安排", "要求", "守則", "規定", "清單", "注意事項", "工序", "圖解", "示意圖")
 
 # Lines starting with these are safety rules / control measures, not steps.
 _CONTROL_STARTERS = ("必須", "嚴禁", "不得", "切勿", "確保", "所有工人", "工人須", "工人必須", "如遇", "如有", "如因", "為免", "為防")
@@ -279,6 +279,9 @@ def clean_extracted_steps(raw_steps: list[str], titles: list[str] | None = None,
         "中文工序",
         "工序標題",
         "簡化版工序",
+        # Illustrated step-guide titles, e.g. "簡易中文施工步驟圖解".
+        "施工步驟圖解",
+        "步驟圖解",
     ]
     blocked_terms = [
         "安全準備",

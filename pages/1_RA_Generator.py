@@ -558,7 +558,7 @@ def _zh_item_from_record(record: dict, matrix: dict) -> dict:
     item["hazard_id"] = str(record.get("id", ""))
     item["hazard_category"] = str(record.get("category", ""))
     item["initial_risk_rating"] = _rating_from_matrix(matrix, likelihood, severity)
-    item["residual_risk_rating"] = _rating_from_matrix(matrix, 1, severity)
+    item["residual_risk_rating"] = _residual_rating_from_matrix(matrix, severity)
     return item
 
 
@@ -618,7 +618,7 @@ def _fallback_ra_zh(data: dict) -> RADraft:
             if matched is None:
                 item = {
                     "initial_risk_rating": _rating_from_matrix(matrix, 2, 5),
-                    "residual_risk_rating": _rating_from_matrix(matrix, 1, 5),
+                    "residual_risk_rating": _residual_rating_from_matrix(matrix, 5),
                     **ZH_GENERIC_ITEM,
                 }
             else:
@@ -655,10 +655,7 @@ def fallback_ra(data: dict) -> RADraft:
             initial_score = int(default_likelihood["score"]) * int(default_severity["score"])
             initial_band = risk_band_for_score(matrix, initial_score)
             initial_rating = f"{default_likelihood['code']} x {default_severity['code']} = {initial_score} {initial_band.get('level', record.get('initial_risk', 'MR'))}"
-            residual_likelihood = likelihood_scale[0] if likelihood_scale else {"code": "P1", "score": 1}
-            residual_score = int(residual_likelihood["score"]) * int(default_severity["score"])
-            residual_band = risk_band_for_score(matrix, residual_score)
-            residual_rating = f"{residual_likelihood['code']} x {default_severity['code']} = {residual_score} {residual_band.get('level', 'MR')}"
+            residual_rating = _residual_rating_from_matrix(matrix, int(default_severity["score"]))
             items.append(
                 {
                     "source_step_id": step_ids.get(step, ""),
@@ -740,6 +737,20 @@ def _rating_from_matrix(matrix: dict, likelihood: int, severity: int) -> str:
             level = str(band.get("level", level))
             break
     return f"P{likelihood} x S{severity} = {score} {level}"
+
+
+def _residual_rating_from_matrix(matrix: dict, severity: int) -> str:
+    """Residual rating after ALL additional controls are in place.
+
+    Likelihood drops to P1, and for S4/S5 hazards the credible worst outcome
+    drops one notch too: the encoded additional controls (fall arrest,
+    exclusion zone, physical barriers, LOTO, CP supervision) change what can
+    credibly happen, not just how often. This lands residuals at 1-4 = LR on
+    the HK 5x5 bands — the acceptance criterion the report states — instead
+    of a permanent P1 x S5 = 5 MR floor that reads as inadequate controls.
+    """
+    residual_severity = severity - 1 if severity >= 4 else severity
+    return _rating_from_matrix(matrix, 1, residual_severity)
 
 
 SCAFFOLD_DISMANTLING_HAZARDS = [
@@ -976,7 +987,7 @@ def bmu_item_for_step(data: dict, hazard_id: str) -> dict:
         "initial_risk_rating": _rating_from_matrix(matrix, likelihood, severity),
         "existing_control_measures": info["existing"],
         "additional_control_measures_required": info["additional"],
-        "residual_risk_rating": _rating_from_matrix(matrix, 1, severity),
+        "residual_risk_rating": _residual_rating_from_matrix(matrix, severity),
         "legal_cop_reference": BMU_TC_LEGAL,
         # Row-specific competency (RPE only on load-test rows, electrician on
         # power rows etc.) instead of one repeated block on every row.
@@ -1020,7 +1031,7 @@ def scaffold_required_row(data: dict, hazard_id: str, source: dict[str, str], ch
             "Initial Risk": _rating_from_matrix(matrix, 3, 5),
             "Existing Controls": "按已批准施工方案及拆棚次序施工；由合資格人士監督；設置禁區、圍欄及警告標誌；使用安全帶及獨立救生繩；禁止拋擲竹枝或物料",
             "Additional Controls Required": "開工前核實表格五 / 棚架檢查紀錄；確認牆拉結遷移及臨時支撐安排；逐段由上而下拆卸；惡劣天氣停工及復工前再檢查；確認墮下及墮物救援安排",
-            "Residual Risk": _rating_from_matrix(matrix, 1, 5),
+            "Residual Risk": _residual_rating_from_matrix(matrix, 5),
             "Legal / CoP Reference": "香港職安健法例、建築地盤安全規例、竹棚架安全守則及勞工處相關指引",
             "Permit / Competent Person": "如工程安全制度要求，須使用拆棚 / 改棚工作許可；表格五及合資格人士檢查須由安全主任核實",
             "Inspection / Monitoring": "每日開工前檢查；合資格人士持續監督；拆除牆拉結前後檢查；惡劣天氣後復工檢查；保存檢查紀錄",
@@ -1041,7 +1052,7 @@ def scaffold_required_row(data: dict, hazard_id: str, source: dict[str, str], ch
         "Initial Risk": _rating_from_matrix(matrix, 3, 5),
         "Existing Controls": "Follow approved dismantling method and sequence; competent person supervision; exclusion zone, barriers and warning signs; safety harness with independent lifeline; no throwing or flying bamboo",
         "Additional Controls Required": "Verify Form 5 / scaffold inspection record before work; confirm wall-tie relocation and temporary bracing; dismantle top-down by stage; suspend work in adverse weather and inspect before restart; confirm fall and falling-object rescue arrangement",
-        "Residual Risk": _rating_from_matrix(matrix, 1, 5),
+        "Residual Risk": _residual_rating_from_matrix(matrix, 5),
         "Legal / CoP Reference": "Hong Kong OSH legislation, Construction Sites (Safety) Regulations, Code of Practice for Bamboo Scaffolding Safety and Labour Department guidance",
         "Permit / Competent Person": "Permit-to-work for scaffold dismantling / alteration, if required by project safety system; Form 5 and competent person inspection to be verified by Safety Officer",
         "Inspection / Monitoring": "Daily pre-work inspection; full-time competent person supervision; inspection before and after wall-tie removal; post-weather restart inspection; inspection record retention",
@@ -1150,7 +1161,7 @@ def ensure_required_ra_rows(data: dict, rows: list[dict[str, str]]) -> list[dict
                 "Initial Risk": _rating_from_matrix(matrix, 2, 5),
                 "Existing Controls": ZH_GENERIC_ITEM["existing_control_measures"],
                 "Additional Controls Required": ZH_GENERIC_ITEM["additional_control_measures_required"],
-                "Residual Risk": _rating_from_matrix(matrix, 1, 5),
+                "Residual Risk": _residual_rating_from_matrix(matrix, 5),
                 "Legal / CoP Reference": ZH_GENERIC_ITEM["legal_cop_reference"],
                 "Permit / Competent Person": ZH_GENERIC_ITEM["permit_certificate_competent_person_required"],
                 "Inspection / Monitoring": ZH_GENERIC_ITEM["inspection_monitoring_points"],
@@ -1167,7 +1178,7 @@ def ensure_required_ra_rows(data: dict, rows: list[dict[str, str]]) -> list[dict
             "Initial Risk": _rating_from_matrix(matrix, 2, 5),
             "Existing Controls": "Follow approved Method Statement; pre-work briefing; provide safe working platform and access; establish exclusion zone and warning signs; use suitable PPE",
             "Additional Controls Required": "Competent person inspection of relevant platform, scaffold or equipment; enhanced supervision; stage-by-stage work sequence; maintain good housekeeping",
-            "Residual Risk": _rating_from_matrix(matrix, 1, 5),
+            "Residual Risk": _residual_rating_from_matrix(matrix, 5),
             "Legal / CoP Reference": "Hong Kong OSH legislation, Labour Department guidance and relevant Codes of Practice",
             "Permit / Competent Person": "Working-at-height training, toolbox talk and competent person inspection as required by project",
             "Inspection / Monitoring": "Pre-work inspection; active monitoring; close-out inspection and record",
@@ -1247,7 +1258,7 @@ def ensure_required_ra_rows(data: dict, rows: list[dict[str, str]]) -> list[dict
             "Initial Risk": _rating_from_matrix(matrix, 3, 5),
             "Existing Controls": "Set up barriers, warning signs and exclusion zones; maintain clear access route; supervise lifting or material movement; keep work area tidy",
             "Additional Controls Required": "Provide covered walkway or catch-fan where required; appoint banksman / traffic marshal; schedule high-risk work outside peak public interface periods; communicate with affected parties",
-            "Residual Risk": _rating_from_matrix(matrix, 1, 5),
+            "Residual Risk": _residual_rating_from_matrix(matrix, 5),
             "Legal / CoP Reference": "Hong Kong OSH legislation, public protection requirements and project traffic / pedestrian management plan",
             "Permit / Competent Person": "Permit / temporary traffic or public protection arrangement where applicable",
             "Inspection / Monitoring": "Daily inspection of barriers, signs, public route and dropped-object controls",
@@ -1282,7 +1293,7 @@ def ensure_required_ra_rows(data: dict, rows: list[dict[str, str]]) -> list[dict
             "Initial Risk": _rating_from_matrix(matrix, 3, 5),
             "Existing Controls": "設置圍欄、警告標誌及禁區；保持通道暢通；監督吊運或物料搬運；保持工作區整潔",
             "Additional Controls Required": "按需要設置有蓋通道或接物防護；委任訊號員 / 交通指揮員；避開公眾介面高峰時段進行高風險工作；通知受影響人士",
-            "Residual Risk": _rating_from_matrix(matrix, 1, 5),
+            "Residual Risk": _residual_rating_from_matrix(matrix, 5),
             "Legal / CoP Reference": "香港職安健法例、公眾保護要求及工程交通 / 行人管理計劃",
             "Permit / Competent Person": "如適用須取得臨時交通或公眾保護安排批准",
             "Inspection / Monitoring": "每日檢查圍欄、標誌、公眾通道及防墮物控制措施",

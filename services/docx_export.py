@@ -315,7 +315,7 @@ SAFE_STATIC_TEXT = {
         **STATIC_TEXT["English"],
         "disclaimer": DISCLAIMER,
         "risk_index_guide": "Risk Index Guide:",
-        "minimum_acceptable_risk": "Minimum acceptable residual risk: all residual risk shall be reduced to ALARP and normally MR or below unless specifically accepted by authorised management.",
+        "minimum_acceptable_risk": "Minimum acceptable residual risk: all residual risk shall be reduced to ALARP and normally LR (score 1-4) after additional controls; any residual MR requires stated ALARP justification and specific acceptance by the Registered Safety Officer / authorised management before work proceeds.",
         "pi_note": "P: probability or likelihood rating; IC: Impact Consequence rating.",
         "remarks_note": "Remark / Actual residual RL shall record the final residual risk score and corresponding risk code after additional controls are implemented.",
         "risk_guide_rows": [
@@ -328,7 +328,7 @@ SAFE_STATIC_TEXT = {
     "Traditional Chinese": {
         "disclaimer": "AI \u751f\u6210\u8349\u7a3f\uff0c\u4f7f\u7528\u524d\u9808\u7531\u5b89\u5168\u4e3b\u4efb / \u7372\u6388\u6b0a\u4eba\u58eb\u5be9\u95b1\u53ca\u6279\u51c6\u3002",
         "risk_index_guide": "\u98a8\u96aa\u6307\u6578\u6307\u5f15\uff1a",
-        "minimum_acceptable_risk": "\u6700\u4f4e\u53ef\u63a5\u53d7\u5269\u9918\u98a8\u96aa\uff1a\u6240\u6709\u5269\u9918\u98a8\u96aa\u9808\u964d\u81f3 ALARP \u6c34\u5e73\uff0c\u4e00\u822c\u61c9\u70ba MR \u6216\u4ee5\u4e0b\uff1b\u5982\u9ad8\u65bc MR\uff0c\u9808\u7531\u7372\u6388\u6b0a\u7ba1\u7406\u5c64\u7279\u5225\u63a5\u53d7\u3002",
+        "minimum_acceptable_risk": "最低可接受剩餘風險：所有剩餘風險實施進一步控制措施後須降至 LR（1-4 分）；如仍為 MR，須列明 ALARP 理據並由註冊安全主任 / 獲授權管理層特別接受方可開工。",
         "pi_note": "P\uff1a\u53ef\u80fd\u6027 / \u767c\u751f\u6a5f\u6703\u8a55\u7d1a\uff1bIC\uff1a\u5f71\u97ff\u5f8c\u679c\u8a55\u7d1a\u3002",
         "remarks_note": "\u5099\u8a3b / \u5be6\u969b\u5269\u9918\u98a8\u96aa\u9808\u8a18\u9304\u5be6\u65bd\u9032\u4e00\u6b65\u63a7\u5236\u63aa\u65bd\u5f8c\u7684\u6700\u7d42\u5269\u9918\u98a8\u96aa\u5206\u6578\u53ca\u5c0d\u61c9\u98a8\u96aa\u4ee3\u865f\u3002",
         "risk_guide_rows": [
