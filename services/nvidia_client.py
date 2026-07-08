@@ -226,7 +226,53 @@ def _parse_json_loose(content: str) -> Any | None:
                 return json.loads(snippet[:end])
             except (json.JSONDecodeError, ValueError):
                 continue
+    # 4) output truncated mid-value (hit max_tokens): cut back to the last
+    # complete nested value and close every still-open bracket, salvaging all
+    # complete rows instead of discarding the whole reply.
+    repaired = _complete_truncated_json(text)
+    if repaired is not None:
+        try:
+            return json.loads(repaired)
+        except (json.JSONDecodeError, ValueError):
+            pass
     return None
+
+
+def _complete_truncated_json(text: str) -> str | None:
+    """Repair JSON cut off mid-output: drop the incomplete trailing item and
+    append the closers for whatever brackets remain open."""
+    start = text.find("{")
+    if start < 0:
+        return None
+    body = text[start:]
+    stack: list[str] = []
+    in_string = False
+    escaped = False
+    cut = 0
+    stack_at_cut: list[str] = []
+    for index, char in enumerate(body):
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+        elif char == '"':
+            in_string = True
+        elif char in "{[":
+            stack.append(char)
+        elif char in "}]":
+            if stack:
+                stack.pop()
+            # A closer marks the end of a complete nested value — a safe place
+            # to cut if the remainder turns out to be truncated.
+            cut = index + 1
+            stack_at_cut = list(stack)
+    if cut == 0 or not stack_at_cut:
+        return None
+    closers = "".join("}" if bracket == "{" else "]" for bracket in reversed(stack_at_cut))
+    return body[:cut] + closers
 
 
 def _message_text(message: Any) -> str:
@@ -269,17 +315,26 @@ def generate_json(system_prompt: str, payload: dict[str, Any], schema: Type[Base
     # retry instead of dropping straight to the local template.
     busy_tokens = ("503", "429", "ResourceExhausted", "RateLimit", "InternalServerError", "Service Unavailable", "Connection")
     timeout_retries = 0
+    # JSON mode: supported by Gemini's OpenAI-compatible endpoint and most
+    # NVIDIA instruct models; dropped automatically if the endpoint rejects it.
+    use_json_mode = True
     for attempt in range(4):
         try:
+            request_options = dict(options)
+            if use_json_mode:
+                request_options["response_format"] = {"type": "json_object"}
             response = _client(timeout_override).chat.completions.create(
                 model=model_name(),
                 messages=messages,
-                **options,
+                **request_options,
             )
             break
         except Exception as exc:
             detail = re.sub(r"\s+", " ", str(exc))[:180]
             last_error = f"{exc.__class__.__name__}: {detail}" if detail else exc.__class__.__name__
+            if use_json_mode and ("response_format" in detail or "json_object" in detail):
+                use_json_mode = False
+                continue
             # A timeout burns the full NVIDIA_TIMEOUT_SECONDS, so allow only one
             # timeout retry; busy 503/429 responses fail fast, so a few short
             # sleeps are cheap.
@@ -294,13 +349,24 @@ def generate_json(system_prompt: str, payload: dict[str, Any], schema: Type[Base
             return None, flags, last_error
     if response is None:
         return None, flags, last_error or "no_response"
-    content = _message_text(response.choices[0].message) or "{}"
+    choice = response.choices[0]
+    content = _message_text(choice.message) or "{}"
+    finish_reason = str(getattr(choice, "finish_reason", "") or "")
     data = _parse_json_loose(content)
     if data is None:
         # Model replied but not as usable JSON (reasoning preamble, ```json
         # fences, truncated object...). Never crash the app - report and let the
         # caller fall back to the local template.
+        if finish_reason == "length":
+            return None, flags, (
+                "output_truncated_at_max_tokens: the reply hit the output token limit before the JSON "
+                "was complete. Raise NVIDIA_MAX_TOKENS in Secrets (e.g. \"16384\") or confirm fewer steps per run."
+            )
         return None, flags, "invalid_json_from_model: " + re.sub(r"\s+", " ", content)[:160]
+    if finish_reason == "length":
+        # Parsed only because the truncation repair salvaged complete rows;
+        # surface it so the user knows the output limit was the bottleneck.
+        flags = list(dict.fromkeys(flags + ["output_truncated_at_max_tokens_partial_rows_salvaged"]))
     try:
         return schema.model_validate(data), flags, None
     except ValidationError as exc:

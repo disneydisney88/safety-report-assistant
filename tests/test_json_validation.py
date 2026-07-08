@@ -65,3 +65,15 @@ def test_extraction_coerces_list_and_string_shapes():
     assert m.plant_equipment == "BMU; material hoist"
     assert m.workforce_trades == "electrician; signalman"
     assert m.work_steps == ["connect power supply"]
+
+
+def test_parse_json_loose_repairs_truncated_output():
+    from services.nvidia_client import _parse_json_loose
+
+    truncated = (
+        '{"disclaimer":"x","items":['
+        '{"work_step":"Step 5","hazard":"falling concrete"},'
+        '{"work_step":"Step 6","hazard":"Fully support the concrete piece with chain blo'
+    )
+    data = _parse_json_loose(truncated)
+    assert data == {"disclaimer": "x", "items": [{"work_step": "Step 5", "hazard": "falling concrete"}]}
