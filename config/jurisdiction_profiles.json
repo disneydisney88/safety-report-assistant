@@ -5,7 +5,7 @@
       "display_name": "Hong Kong - Labour Department OSH / CoP",
       "legal_reference_basis": ["Hong Kong OSH legislation", "Labour Department Codes of Practice", "Labour Department safety guidance"],
       "default_ra_method": ["Five Steps to Risk Assessment", "JSA / HIRA"],
-      "default_matrix": "HK_5X5_DEFAULT",
+      "default_matrix": "HK_CONSTRUCTION_5X5_REF_IEC31010",
       "legal_clause_rule": "Do not invent exact clause numbers. Mark uncertain references as 'To be verified by Safety Officer'.",
       "approval_role": "Safety Officer"
     },
@@ -14,7 +14,7 @@
       "display_name": "Hong Kong - Client / Contractor Custom Matrix",
       "legal_reference_basis": ["Hong Kong OSH legislation", "Client / contractor standard"],
       "default_ra_method": ["Client RA method", "JSA / HIRA"],
-      "default_matrix": "HK_5X5_DEFAULT",
+      "default_matrix": "HK_CONSTRUCTION_5X5_REF_IEC31010",
       "legal_clause_rule": "Use reference tags unless exact clauses are verified.",
       "approval_role": "Safety Officer / Client Representative"
     },
@@ -41,7 +41,7 @@
       "display_name": "United States - OSHA / NIOSH Style",
       "legal_reference_basis": ["OSHA / NIOSH guidance", "Company safety standard"],
       "default_ra_method": ["JSA / JHA"],
-      "default_matrix": "HK_5X5_DEFAULT",
+      "default_matrix": "HK_CONSTRUCTION_5X5_REF_IEC31010",
       "legal_clause_rule": "Use reference tags unless verified.",
       "approval_role": "Competent Person / Safety Manager"
     },
@@ -50,7 +50,7 @@
       "display_name": "Generic ISO / IEC Framework",
       "legal_reference_basis": ["ISO 31000", "IEC 31010 principles"],
       "default_ra_method": ["Risk Assessment", "JSA"],
-      "default_matrix": "HK_5X5_DEFAULT",
+      "default_matrix": "HK_CONSTRUCTION_5X5_REF_IEC31010",
       "legal_clause_rule": "Use general reference tags only.",
       "approval_role": "Authorised Person"
     },
@@ -59,7 +59,7 @@
       "display_name": "Custom Project / Client Standard",
       "legal_reference_basis": ["User uploaded / client standard"],
       "default_ra_method": ["User selected"],
-      "default_matrix": "HK_5X5_DEFAULT",
+      "default_matrix": "HK_CONSTRUCTION_5X5_REF_IEC31010",
       "legal_clause_rule": "Follow uploaded project standard. Flag uncertain items.",
       "approval_role": "User defined"
     }

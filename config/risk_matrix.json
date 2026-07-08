@@ -1,27 +1,85 @@
 {
   "matrices": {
-    "HK_5X5_DEFAULT": {
-      "matrix_id": "HK_5X5_DEFAULT",
-      "matrix_name": "Hong Kong Construction OSH Default 5x5 Matrix",
+    "HK_CONSTRUCTION_5X5_REF_IEC31010": {
+      "matrix_id": "HK_CONSTRUCTION_5X5_REF_IEC31010",
+      "matrix_name": "Hong Kong Construction OSH 5x5 Risk Matrix - with reference to ISO/IEC 31010 risk assessment technique principles",
       "formula": "risk_score = likelihood * severity",
       "likelihood_scale": [
-        {"score": 1, "code": "P1", "label_en": "Rare"},
-        {"score": 2, "code": "P2", "label_en": "Unlikely"},
-        {"score": 3, "code": "P3", "label_en": "Possible"},
-        {"score": 4, "code": "P4", "label_en": "Likely"},
-        {"score": 5, "code": "P5", "label_en": "Almost Certain"}
+        {
+          "score": 1,
+          "code": "P1",
+          "label_en": "Rare"
+        },
+        {
+          "score": 2,
+          "code": "P2",
+          "label_en": "Unlikely"
+        },
+        {
+          "score": 3,
+          "code": "P3",
+          "label_en": "Possible"
+        },
+        {
+          "score": 4,
+          "code": "P4",
+          "label_en": "Likely"
+        },
+        {
+          "score": 5,
+          "code": "P5",
+          "label_en": "Almost Certain"
+        }
       ],
       "severity_scale": [
-        {"score": 1, "code": "S1", "label_en": "Insignificant"},
-        {"score": 2, "code": "S2", "label_en": "Minor"},
-        {"score": 3, "code": "S3", "label_en": "Moderate"},
-        {"score": 4, "code": "S4", "label_en": "Major"},
-        {"score": 5, "code": "S5", "label_en": "Catastrophic"}
+        {
+          "score": 1,
+          "code": "S1",
+          "label_en": "Insignificant"
+        },
+        {
+          "score": 2,
+          "code": "S2",
+          "label_en": "Minor"
+        },
+        {
+          "score": 3,
+          "code": "S3",
+          "label_en": "Moderate"
+        },
+        {
+          "score": 4,
+          "code": "S4",
+          "label_en": "Major"
+        },
+        {
+          "score": 5,
+          "code": "S5",
+          "label_en": "Catastrophic"
+        }
       ],
       "risk_bands": [
-        {"min": 1, "max": 4, "level": "LR", "label": "Low Risk", "action": "Acceptable with basic controls and monitoring"},
-        {"min": 5, "max": 9, "level": "MR", "label": "Medium Risk", "action": "Specific controls and supervisor monitoring required"},
-        {"min": 10, "max": 25, "level": "HR", "label": "High Risk", "action": "Additional controls, permit / competent person / inspection / emergency response required"}
+        {
+          "min": 1,
+          "max": 4,
+          "level": "LR",
+          "label": "Low Risk",
+          "action": "Acceptable with basic controls and monitoring"
+        },
+        {
+          "min": 5,
+          "max": 9,
+          "level": "MR",
+          "label": "Medium Risk",
+          "action": "Specific controls and supervisor monitoring required"
+        },
+        {
+          "min": 10,
+          "max": 25,
+          "level": "HR",
+          "label": "High Risk",
+          "action": "Additional controls, permit / competent person / inspection / emergency response required"
+        }
       ],
       "override_rule": "If the project uploads an approved risk matrix, the project matrix shall prevail.",
       "checker_rule": "If stated risk score does not match selected likelihood and severity, flag as REVISE REQUIRED."
@@ -31,23 +89,64 @@
       "matrix_name": "Generic 3x3 Matrix",
       "formula": "risk_score = likelihood * severity",
       "likelihood_scale": [
-        {"score": 1, "code": "L1", "label_en": "Unlikely"},
-        {"score": 2, "code": "L2", "label_en": "Possible"},
-        {"score": 3, "code": "L3", "label_en": "Likely"}
+        {
+          "score": 1,
+          "code": "L1",
+          "label_en": "Unlikely"
+        },
+        {
+          "score": 2,
+          "code": "L2",
+          "label_en": "Possible"
+        },
+        {
+          "score": 3,
+          "code": "L3",
+          "label_en": "Likely"
+        }
       ],
       "severity_scale": [
-        {"score": 1, "code": "S1", "label_en": "Minor"},
-        {"score": 2, "code": "S2", "label_en": "Serious"},
-        {"score": 3, "code": "S3", "label_en": "Fatal / Major"}
+        {
+          "score": 1,
+          "code": "S1",
+          "label_en": "Minor"
+        },
+        {
+          "score": 2,
+          "code": "S2",
+          "label_en": "Serious"
+        },
+        {
+          "score": 3,
+          "code": "S3",
+          "label_en": "Fatal / Major"
+        }
       ],
       "risk_bands": [
-        {"min": 1, "max": 2, "level": "LR", "label": "Low Risk", "action": "Basic controls and monitoring"},
-        {"min": 3, "max": 4, "level": "MR", "label": "Medium Risk", "action": "Specific controls required"},
-        {"min": 6, "max": 9, "level": "HR", "label": "High Risk", "action": "Additional controls and approval required"}
+        {
+          "min": 1,
+          "max": 2,
+          "level": "LR",
+          "label": "Low Risk",
+          "action": "Basic controls and monitoring"
+        },
+        {
+          "min": 3,
+          "max": 4,
+          "level": "MR",
+          "label": "Medium Risk",
+          "action": "Specific controls required"
+        },
+        {
+          "min": 6,
+          "max": 9,
+          "level": "HR",
+          "label": "High Risk",
+          "action": "Additional controls and approval required"
+        }
       ],
       "override_rule": "Use only when project/client accepts 3x3 matrix.",
       "checker_rule": "Check risk band against selected 3x3 score."
     }
   }
 }
-

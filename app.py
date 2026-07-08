@@ -140,7 +140,7 @@ st.markdown(
       <p>Upload a Method Statement, confirm the real work steps, and export a contractor-style Risk Assessment report in Word / Excel.</p>
       <p>上載施工方法書，確認真實工序，即可輸出承建商格式的風險評估報告（Word / Excel）。</p>
       <div class="home-chips">
-        <span class="home-chip">HK OSH · IEC 31010</span>
+        <span class="home-chip">HK OSH 5×5 Matrix · ref. ISO/IEC 31010</span>
         <span class="home-chip">Cap. 59 / 59I / 59J / 59AC 法例對應</span>
         <span class="home-chip">A3 RA Table · 風險矩陣</span>
         <span class="home-chip">Word &amp; Excel 匯出</span>

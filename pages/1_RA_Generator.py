@@ -1536,7 +1536,7 @@ def _ai_generation_payload(data: dict, batch: list[dict[str, str]], suppress_ext
         ),
         "hidden_report_prompt": build_hidden_report_prompt(data, batch, suppress_extra_rows, include_sections),
         "instruction": (
-            "Prepare a professional Risk Assessment Report according to IEC 31010 and Hong Kong safety legislation / CoP. "
+            "Prepare a professional Risk Assessment Report in accordance with Hong Kong safety legislation / CoP, with reference to ISO/IEC 31010 risk assessment technique principles. "
             "Use the uploaded Method Statement text, confirmed steps and matched risk library first. Do not invent exact legal clause numbers. "
             "Use the selected jurisdiction profile and selected risk matrix. Calculate risk scores as likelihood x severity and ensure LR/MR/HR matches the selected matrix band. "
             "The RA table must include at least one risk row for every confirmed construction step listed in confirmed_step_records. "
@@ -1698,7 +1698,7 @@ st.markdown(
       <div class="ra-meta">
         <span class="ra-chip">NVIDIA AI backend</span>
         <span class="ra-chip">Word / Excel export</span>
-        <span class="ra-chip">HK OSH + IEC 31010</span>
+        <span class="ra-chip">HK OSH 5×5 Matrix · ref. ISO/IEC 31010</span>
         <span class="ra-chip">PDF / DOCX / TXT upload</span>
       </div>
     </div>
