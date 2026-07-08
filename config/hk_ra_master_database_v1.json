@@ -2833,8 +2833,8 @@
     },
     {
       "module": "hot_work",
-      "keywords_cn": "熱工作, 風煤, 燒焊, 電焊, 火花, 氣樽, 切割",
-      "keywords_en": "hot work, gas cutting, welding, grinding, spark",
+      "keywords_cn": "熱工作, 風煤, 燒焊, 電焊, 火焰切割, 火花, 氣樽",
+      "keywords_en": "hot work, gas cutting, welding, flame cutting, arc welding",
       "auto_insert_hazards": "HK-HOT-001 to HK-HOT-003",
       "auto_insert_rules": "CHK-008; fire watch"
     },

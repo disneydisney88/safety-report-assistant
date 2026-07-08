@@ -80,3 +80,15 @@ def test_repairs_spaceless_pdf_steps():
     # Healthy text must survive repair untouched.
     ok = "Carry out static load test of the cage at 150% SWL witnessed by RPE."
     assert repair_concatenated_english(ok) == ok
+
+
+def test_keeps_rebar_formwork_casting_step():
+    from services.file_extract import infer_steps_from_ms_text
+
+    text = "\n".join([
+        "簡易中文施工步驟圖解",
+        "步驟 9｜清走混凝土芯及廢料 | 鑽孔後的混凝土圓柱及碎料須即時清走。",
+        "步驟 10｜新造樓板及樑 | 進行植筋、扎鐵、模板及假支架工程。 | 先完成 +272.24 樓層，再進行 +274.45 樓層混凝土工程。 | 模板、支架及鋼筋經檢查並簽發 T4 後，才可澆築混凝土",
+    ])
+    steps = infer_steps_from_ms_text(text)
+    assert any("新造樓板及樑" in s for s in steps), steps

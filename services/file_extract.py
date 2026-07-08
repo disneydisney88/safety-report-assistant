@@ -373,7 +373,15 @@ def infer_steps_from_ms_text(text: str, max_steps: int = 14) -> list[str]:
         if any(clean.startswith(term) for term in control_starts):
             return True
         control_terms = ["大原則", "訓練", "佩帶", "安全帽", "安全帶", "嚴禁", "檢查", "記錄", "提醒工人", "非作業人員"]
-        action_terms = ["拆除", "拆卸", "傳遞", "運走", "清走", "安裝", "封閉"]
+        # Broad list: a line naming real construction activities is a step even
+        # when it also mentions 檢查/記錄 (e.g. 步驟10 新造樓板及樑 ... 經檢查並
+        # 簽發 T4 後才可澆築混凝土 was wrongly dropped as a control).
+        action_terms = [
+            "拆除", "拆卸", "傳遞", "運走", "清走", "安裝", "封閉",
+            "植筋", "扎鐵", "紮鐵", "澆築", "澆注", "落石屎", "混凝土工程",
+            "搭設", "搭建", "鑽孔", "鑽切", "切割", "吊起", "吊運", "回頂",
+            "圍封", "模板", "支架工程", "接駁", "測試", "調試",
+        ]
         if any(term in clean for term in control_terms) and not any(term in clean for term in action_terms):
             return True
         return False

@@ -523,6 +523,24 @@ def _apply_fonts(run) -> None:
     rfonts.set(qn("w:eastAsia"), EAST_ASIAN_FONT)
 
 
+# Markers that flag content needing attention in the printed report:
+# square-bracket placeholders the site team must complete, and residual risk
+# still above the LR acceptance target.
+_PLACEHOLDER_MARKERS = ("[To be completed by site team", "[由工地團隊填寫", "[由工地填寫")
+
+
+def _is_alert_text(text: str) -> bool:
+    return any(marker in str(text or "") for marker in _PLACEHOLDER_MARKERS)
+
+
+def residual_above_target(text: str) -> bool:
+    """True when a residual rating has not reached the LR acceptance target
+    (e.g. "P1 x S5 = 5 MR"). Applied to the residual column only — a high
+    INITIAL rating is normal and must not be flagged."""
+    match = re.search(r"=\s*\d+\s*(LR|MR|HR)", str(text or ""))
+    return bool(match and match.group(1) in {"MR", "HR"})
+
+
 def _set_cell_text(cell, text: Any, bold: bool = False, size: float = 10.0, align: int | None = None) -> None:
     cell.text = ""
     paragraph = cell.paragraphs[0]
@@ -535,6 +553,11 @@ def _set_cell_text(cell, text: Any, bold: bool = False, size: float = 10.0, alig
     run.bold = bold
     _apply_fonts(run)
     run.font.size = Pt(size)
+    # Red-flag site-team placeholders and residual risk above the LR target so
+    # reviewers cannot miss what still needs action before work starts.
+    if text and _is_alert_text(str(text)):
+        run.font.color.rgb = RGBColor(0xC0, 0x00, 0x00)
+        run.bold = True
 
 
 def _zh_term_cleanup(text: Any) -> str:
@@ -925,6 +948,9 @@ def _add_supporting_sections(doc: Document, lbl: dict[str, str], language: str, 
                 _apply_fonts(run)
                 value_run = para.add_run(str(value))
                 _apply_fonts(value_run)
+                if _is_alert_text(str(value)):
+                    value_run.font.color.rgb = RGBColor(0xC0, 0x00, 0x00)
+                    value_run.bold = True
     training = sections.get("training_records") or []
     if training:
         _add_heading(doc, lbl["training"], level=2)
@@ -1100,15 +1126,10 @@ def build_ra_docx(report: dict[str, Any], ra_rows: list[dict[str, Any]], matrix:
         residual_code = _extract_level_code(row.get("Residual Risk"))
         actual_residual = f"{residual_score or '-'} {residual_code}".strip()
         _set_cell_text(cells[0], item_no, size=10.0, align=WD_ALIGN_PARAGRAPH.CENTER)
-        # A work step with several hazards spans several rows; only print the
-        # step text on the first row of the group so the table reads cleanly.
+        # Every row prints its job task, including repeats within a
+        # multi-hazard group — a blank Job Task cell fails formal RA QA.
         step_text = _clean_for_main_risk_row(row.get("Work Step"), language, is_weather)
-        step_key = str(row.get("Source Step ID") or "") + "|" + str(row.get("Work Step") or "")
-        if step_key == previous_step:
-            _set_cell_text(cells[1], "", size=10.0)
-        else:
-            _set_cell_text(cells[1], step_text, size=10.0)
-            previous_step = step_key
+        _set_cell_text(cells[1], step_text or "To be confirmed", size=10.0)
         _set_cell_text(cells[2], _numbered_text(_clean_for_main_risk_row(row.get("Hazard"), language, is_weather)), size=10.0)
         _set_cell_text(cells[3], _clean_for_main_risk_row(row.get("Persons at Risk"), language, is_weather), size=10.0)
         _set_cell_text(cells[4], _numbered_text(_clean_for_main_risk_row(row.get("Cause of Hazard") or row.get("Remarks") or "Cause to be confirmed against Method Statement / site condition", language, is_weather)), size=10.0)
@@ -1123,6 +1144,15 @@ def build_ra_docx(report: dict[str, Any], ra_rows: list[dict[str, Any]], matrix:
         _set_cell_text(cells[12], _clean_for_main_risk_row(row.get("Responsible Person"), language, is_weather), size=10.0)
         _set_cell_text(cells[13], row.get("Residual Risk"), size=10.0, align=WD_ALIGN_PARAGRAPH.CENTER)
         _set_cell_text(cells[14], actual_residual, size=10.0, align=WD_ALIGN_PARAGRAPH.CENTER)
+        # Residual not yet at the LR acceptance target: bold red so the
+        # reviewer must either strengthen controls or record management
+        # acceptance before work proceeds.
+        if residual_above_target(str(row.get("Residual Risk") or "")):
+            for cell_idx in (13, 14):
+                for paragraph in cells[cell_idx].paragraphs:
+                    for run in paragraph.runs:
+                        run.font.color.rgb = RGBColor(0xC0, 0x00, 0x00)
+                        run.bold = True
         initial_score = _extract_score(row.get("Initial Risk"))
         if initial_score is not None:
             _set_cell_shading(cells[7], _risk_fill(initial_score))

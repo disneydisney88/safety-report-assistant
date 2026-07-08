@@ -695,7 +695,15 @@ def ra_rows(draft: RADraft) -> list[dict[str, str]]:
             "Source Step Translated": value(item, "source_step_text_translated"),
             "Hazard ID": value(item, "hazard_id"),
             "Hazard Category": value(item, "hazard_category"),
-            "Work Step": value(item, "work_step", "To be confirmed"),
+            # Job Task must never be blank on a formal RA: fall back to the
+            # source step text, then the hazard category, before a placeholder.
+            "Work Step": (
+                value(item, "work_step", "")
+                or value(item, "source_step_text_translated", "")
+                or value(item, "source_step_text_original", "")
+                or value(item, "hazard_category", "")
+                or "To be confirmed"
+            ),
             "Hazard": value(item, "hazard", "To be confirmed"),
             "Cause of Hazard": value(item, "cause_of_hazard", "To be confirmed"),
             "Possible Consequence": value(item, "possible_consequence", "To be confirmed"),
@@ -1339,8 +1347,20 @@ def build_hidden_report_prompt(data: dict, step_batch: list[dict[str, str]] | No
             "Emergency: trapped-in-cage rescue (emergency lowering / specialist / fire services), communication with cage occupants, exclusion zone below, lock-out of failed equipment until engineer re-inspection. "
             "Do NOT assess the load test as a material stacking / housekeeping issue."
         )
-    if any(token in joined for token in ["hot work", "welding", "cutting", "grinding", "熱工", "焊", "切割", "打磨"]):
+    # Hot work needs flame / arc — wet coring or concrete sawing must NOT pull
+    # in hot work permits and gas-welding CoP references.
+    if any(token in joined for token in ["hot work", "welding", "flame cut", "gas cutting", "熱工", "燒焊", "電焊", "風煤", "火焰切割"]):
         triggers.append("Hot work: include hot work permit, fire watch, combustible material control and post-work fire check.")
+    if any(token in joined for token in ["拆卸", "打拆", "切割", "鑽孔", "鑽切", "demolition", "concrete cutting", "coring", "sawing"]):
+        triggers.append(
+            "Concrete cutting / demolition: cover pre-drilling rebar and utility scanning; back-propping / temporary works checked by TWC / SRP before cutting; "
+            "sequential cutting with each piece fully supported (chain block / lifting eyes certified) before the final cut; weight limit per piece verified; "
+            "openings formed after removal MUST be immediately covered or protected with guardrails and toe boards, marked, and covers not removed without authorisation; "
+            "wet method for dust control plus slurry / water management to prevent slips and contact with live services; "
+            "transport route (forklift / pallet jack) with banksman, floor loading confirmed; "
+            "for new slab / beam construction cover rebar fixing injuries, formwork / falsework collapse, T4 inspection before casting, concrete pour failure and cement contact dermatitis. "
+            "Do NOT treat wet concrete cutting as hot work unless flame cutting or welding is actually stated."
+        )
     if not triggers:
         triggers.append("No special trigger detected: still include task-specific hazards for each confirmed work step.")
 
@@ -2187,9 +2207,11 @@ if st.session_state.get("ra_stage") == "generated" and "ra_draft" in st.session_
     if pre_flags.get("confined_space") == "Yes" or data.get("confined_space") == "Yes":
         statutory_extra.append("Cap. 59AE 密閉空間規例及《密閉空間工作安全守則》")
     if pre_flags.get("electrical") == "Yes" and not is_bmu_swp_work(data):
-        statutory_extra.append("工廠及工業經營(電力)規例 (F&IU (Electricity) Regulations)")
+        statutory_extra.append("工廠及工業經營(電力)規例 — 如適用；並按工地電力安全規定執行 RCD / ELCB 及註冊電業工程人員檢查")
     if pre_flags.get("hot_work") == "Yes":
-        statutory_extra.append("《氣體焊接及火焰切割安全守則》及消防安全要求")
+        statutory_extra.append("《氣體焊接及火焰切割安全守則》及消防安全要求 — 僅適用於涉及燒焊 / 火焰切割工序")
+    if any(t in steps_corpus.lower() for t in ["拆卸", "打拆", "切割", "鑽孔", "鑽切", "demolition", "coring", "concrete cutting"]):
+        statutory_extra.append("Cap. 59I 建築地盤(安全)規例 — 樓面開口即時加蓋 / 護欄及踢腳板、臨邊保護及通道安全")
 
     report = {
         "title": data["project"],

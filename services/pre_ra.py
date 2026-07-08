@@ -323,16 +323,24 @@ def format_pre_ra_for_prompt(sheet: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+
 def build_default_sections(sheet: dict[str, Any], data: dict[str, Any]) -> dict[str, Any]:
     """Deterministic supporting sections (permits / emergency / training /
     inspection) built from the confirmed Pre-RA sheet.
 
-    Used when the AI omits these RADraft fields (its sections call timed out
-    or the local template is in use) so the Word report never jumps from the
-    PPE section straight to the pre-work checklist with sections missing.
-    Content is bilingual-tagged so it reads acceptably in any report language;
-    it is a review baseline, not a substitute for the AI/site-specific text.
+    Used when the AI omits these RADraft fields so the Word report never
+    skips permits / emergency / training / inspection. Content is written in
+    the selected report language only (short standard technical terms such as
+    Form 5 / LOTO / RPE stay in English), never mixed within a sentence.
+    Placeholders in [square brackets] mark details the site team must
+    complete before work starts.
     """
+    language = str(data.get("report_language", "English"))
+    chinese = language in {"Traditional Chinese", "Simplified Chinese"}
+
+    def T(en: str, zh: str) -> str:
+        return zh if chinese else en
+
     flags = sheet.get("flags", {}) or {}
     corpus = " ".join([
         str(data.get("activity", "")),
@@ -341,11 +349,16 @@ def build_default_sections(sheet: dict[str, Any], data: dict[str, Any]) -> dict[
     ]).lower()
     bmu = any(t in corpus for t in ["bmu", "吊船", "gondola", "suspended working platform", "吊籠"])
     scaffold = flags.get("scaffolding") == "Yes" or any(t in corpus for t in ["棚", "scaffold"])
-    lifting = flags.get("lifting") == "Yes" or any(t in corpus for t in ["吊運", "lifting", "crane", "吊機", "hoist"])
-    at_height = bmu or scaffold or flags.get("work_at_height") == "Yes" or any(t in corpus for t in ["高處", "height", "外牆", "天台", "roof"])
-    electrical = flags.get("electrical") == "Yes" or any(t in corpus for t in ["380v", "電源", "electri", "power supply"])
+    lifting = flags.get("lifting") == "Yes" or any(t in corpus for t in ["吊運", "lifting", "crane", "吊機", "hoist", "吊眼", "吊架", "葫蘆"])
+    at_height = bmu or scaffold or flags.get("work_at_height") == "Yes" or any(t in corpus for t in ["高處", "height", "外牆", "天台", "roof", "工作台", "防墮"])
+    electrical = flags.get("electrical") == "Yes" or any(t in corpus for t in ["380v", "電源", "electri", "power supply", "濕鑽", "濕式鑽"])
     confined = flags.get("confined_space") == "Yes"
-    hot_work = flags.get("hot_work") == "Yes"
+    # Hot work means flame / arc, NOT wet concrete drilling or sawing.
+    hot_work = flags.get("hot_work") == "Yes" or any(t in corpus for t in ["燒焊", "焊接", "電焊", "風煤", "flame cut", "weld", "gas cutting"])
+    cutting = any(t in corpus for t in ["切割", "鑽孔", "鑽切", "拆卸", "打拆", "demolition", "coring", "concrete cutting"])
+    transport = any(t in corpus for t in ["叉車", "唧車", "托板車", "forklift", "pallet"])
+    temp_works = any(t in corpus for t in ["回頂", "假支架", "模板", "falsework", "formwork", "propping", "back-prop"])
+    concreting = any(t in corpus for t in ["澆築", "混凝土工程", "植筋", "扎鐵", "紮鐵", "concrete casting", "rebar"])
 
     permits: list[dict[str, str]] = []
 
@@ -357,171 +370,252 @@ def build_default_sections(sheet: dict[str, Any], data: dict[str, Any]) -> dict[
                 "legal_basis_or_sms_ref": basis,
                 "issued_by": issued_by,
                 "validity": validity,
-                "status": "To be confirmed 待確認",
+                "status": T("To be confirmed", "待確認"),
             })
 
+    cat_statutory = T("Statutory", "法定")
+    cat_inhouse = T("In-house", "公司內部")
+    sms = T("Company safety management system (SMS)", "公司安全管理系統")
+    so_agent = T("Safety Officer / Site Agent", "安全主任 / 地盤代理人")
+
     if bmu:
-        _permit("SWP Form 1 / Form 2 / Form 3 吊船表格", "Statutory 法定",
-                "Cap. 59AC 吊船規例 / CoP for Safe Use and Operation of SWP",
-                "合資格人士 / 合資格檢驗員 Competent person / examiner",
-                "Form 1 每週 weekly; Form 2/3 於徹底檢驗及負載測試後 after thorough examination & load test")
-        _permit("負載測試證明 Load test certificate (150% / 125% SWL)", "Statutory 法定",
-                "Cap. 59AC / CoP; 由 RPE 見證 witnessed by RPE",
-                "註冊專業工程師 RPE", "每次負載測試後簽發 issued after each load test")
+        _permit(T("SWP Form 1 / Form 2 / Form 3", "吊船表格 Form 1 / Form 2 / Form 3"), cat_statutory,
+                T("Cap. 59AC Suspended Working Platforms Regulation; CoP for Safe Use and Operation of SWP",
+                  "Cap. 59AC 吊船規例；勞工處吊船安全使用及操作工作守則"),
+                T("Competent person / competent examiner", "合資格人士 / 合資格檢驗員"),
+                T("Form 1 weekly; Form 2/3 after thorough examination and load test",
+                  "Form 1 每週；Form 2/3 於徹底檢驗及負載測試後"))
+        _permit(T("Load test certificate (150% / 125% SWL)", "負載測試證明（150% / 125% SWL）"), cat_statutory,
+                T("Cap. 59AC / CoP; witnessed by RPE", "Cap. 59AC / 工作守則；由 RPE 見證"),
+                T("Registered Professional Engineer (RPE)", "註冊專業工程師（RPE）"),
+                T("Issued after each load test", "每次負載測試後簽發"))
     if scaffold:
-        _permit("表格五 Form 5 棚架檢查報告", "Statutory 法定",
-                "Cap. 59I 建築地盤（安全）規例 Construction Sites (Safety) Regulations",
-                "合資格人士 Competent person",
-                "每 14 天及惡劣天氣後 every 14 days and after adverse weather")
+        _permit(T("Form 5 scaffold inspection report", "表格五（Form 5）棚架檢查報告"), cat_statutory,
+                T("Cap. 59I Construction Sites (Safety) Regulations", "Cap. 59I 建築地盤（安全）規例"),
+                T("Competent person", "合資格人士"),
+                T("Every 14 days and after adverse weather", "每 14 天及惡劣天氣後"))
     if lifting:
-        _permit("LALG 測試及檢驗證書 (Form 3/4/5/7)", "Statutory 法定",
-                "Cap. 59J 起重機械及起重裝置規例 LALG Regulations",
-                "合資格檢驗員 Competent examiner", "按法定週期 per statutory cycle")
-        _permit("吊運作業許可證 / 吊運計劃 Lifting permit / lifting plan", "In-house 內部",
-                "公司安全管理系統 Company SMS", "安全主任 / 地盤代理人 Safety Officer / Site Agent",
-                "每次吊運前 before each lifting operation; 完工後關閉 close out on completion")
+        _permit(T("LALG test / examination certificates", "起重機械及起重裝置測試及檢驗證書（LALG）"), cat_statutory,
+                T("Cap. 59J Lifting Appliances and Lifting Gear Regulations", "Cap. 59J 起重機械及起重裝置規例"),
+                T("Competent examiner", "合資格檢驗員"),
+                T("Per statutory cycle", "按法定週期"))
+        _permit(T("Lifting operation permit / lifting plan", "吊運作業許可證 / 吊運計劃"), cat_inhouse, sms, so_agent,
+                T("Before each lifting operation; close out on completion", "每次吊運前簽發；完工後關閉"))
     if confined:
-        _permit("密閉空間工作證明書及風險評估 Confined space certificate & RA", "Statutory 法定",
-                "Cap. 59AE 密閉空間規例", "合資格人士 Competent person", "進入前簽發 before entry; 按證書有效期 per certificate")
+        _permit(T("Confined space certificate and risk assessment", "密閉空間工作證明書及風險評估"), cat_statutory,
+                T("Cap. 59AE Confined Spaces Regulation", "Cap. 59AE 密閉空間規例"),
+                T("Competent person", "合資格人士"),
+                T("Before entry; per certificate validity", "進入前簽發；按證書有效期"))
     if hot_work:
-        _permit("熱工序許可證 Hot work permit", "In-house 內部", "公司安全管理系統 Company SMS",
-                "安全主任 Safety Officer", "當日有效 same-day validity; 完工火警檢查後關閉 close after fire check")
+        _permit(T("Hot work permit (only if welding / flame cutting is involved)",
+                  "熱工序許可證（僅適用於燒焊 / 火焰切割工序）"), cat_inhouse, sms,
+                T("Safety Officer", "安全主任"),
+                T("Same-day validity; close after post-work fire check", "當日有效；完工防火檢查後關閉"))
     if electrical:
-        _permit("電力接駁 / 上鎖掛牌記錄 Electrical connection & LOTO record", "In-house 內部",
-                "電力（線路）規例 Electricity (Wiring) Regulations; 公司 SMS",
-                "註冊電業工程人員 Registered electrical worker", "每次接駁 / 隔離時 at each connection / isolation")
+        _permit(T("Electrical connection / lock-out tag-out (LOTO) record", "電力接駁 / 上鎖掛牌（LOTO）記錄"), cat_inhouse,
+                T("Electricity (Wiring) Regulations where applicable; site electrical safety rules (RCD / ELCB, REW inspection)",
+                  "如適用之電力（線路）規例；工地電力安全規定（RCD / ELCB、註冊電業工程人員檢查）"),
+                T("Registered electrical worker (REW)", "註冊電業工程人員（REW）"),
+                T("At each connection / isolation", "每次接駁 / 隔離時"))
+    if temp_works or concreting:
+        _permit(T("Temporary works / falsework check and T4 inspection certificate", "臨時工程 / 假支架檢查及 T4 檢查證明"), cat_inhouse,
+                T("Temporary works design and site supervision requirements", "臨時工程設計及工地監督要求"),
+                T("Temporary Works Coordinator (TWC) / Site Resident Professional (SRP)", "臨時工程統籌員（TWC）/ 駐地盤專業人員（SRP）"),
+                T("Before loading / before concrete casting", "受力前 / 澆築混凝土前簽發"))
     if at_height:
-        _permit("高空工作許可證 Working at height permit", "In-house 內部", "公司安全管理系統 Company SMS",
-                "安全主任 / 工地監督 Safety Officer / Site Supervisor", "按工作週期 per work cycle")
-    _permit("工作許可證 Permit-to-work（總）", "In-house 內部", "公司安全管理系統 Company SMS",
-            "安全主任 / 地盤代理人 Safety Officer / Site Agent", "開工前簽發 before work starts")
+        _permit(T("Working at height permit", "高空工作許可證"), cat_inhouse, sms,
+                T("Safety Officer / Site Supervisor", "安全主任 / 工地監督"),
+                T("Per work cycle", "按工作週期"))
+    _permit(T("Permit-to-work (general)", "工作許可證（總）"), cat_inhouse, sms, so_agent,
+            T("Issued before work starts", "開工前簽發"))
 
     scenarios: list[str] = []
     if at_height:
-        scenarios.append("高處墮下 / 安全帶懸吊創傷 Fall from height / suspension trauma")
+        scenarios.append(T("Fall from height / fall-arrest suspension trauma", "高處墮下 / 安全帶懸吊創傷"))
     if bmu:
-        scenarios.append("吊籠停電、卡阻或人員被困 Cradle power failure, jamming or trapped persons")
+        scenarios.append(T("Cradle power failure, jamming or trapped persons", "吊籠停電、卡阻或人員被困"))
     if scaffold:
-        scenarios.append("棚架倒塌 / 竹枝墮下 Scaffold collapse / falling bamboo")
+        scenarios.append(T("Scaffold collapse / falling bamboo members", "棚架倒塌 / 竹枝墮下"))
     if lifting:
-        scenarios.append("吊物墮下 / 吊機翻側 Falling load / crane overturning")
+        scenarios.append(T("Falling load / lifting appliance failure", "吊物墮下 / 吊重設備失效"))
+    if cutting:
+        scenarios.append(T("Structural element falling or shifting during cutting / lifting", "切割或吊運期間混凝土件墮下或移位"))
     if confined:
-        scenarios.append("密閉空間缺氧 / 中毒 Oxygen deficiency / toxic gas in confined space")
+        scenarios.append(T("Oxygen deficiency / toxic gas in confined space", "密閉空間缺氧 / 中毒"))
     if electrical:
-        scenarios.append("觸電 Electric shock")
-    scenarios.append("工人受傷需送院 Injured worker requiring hospital transfer")
-    scenarios.append("惡劣天氣（八號風球 / 紅黑雨）Adverse weather (T8 / red & black rainstorm)")
+        scenarios.append(T("Electric shock", "觸電"))
+    scenarios.append(T("Injured worker requiring hospital transfer", "工人受傷需送院"))
+    scenarios.append(T("Adverse weather (typhoon signal T8 / red or black rainstorm warning)", "惡劣天氣（八號風球 / 紅色或黑色暴雨警告）"))
 
     rescue_bits: list[str] = []
     if at_height:
-        rescue_bits.append("高處墮下救援：備救援套件 / 下降器材，指定受訓救援人員，10 分鐘內解除懸吊（懸吊創傷風險）"
-                           " Fall rescue: rescue kit / descent device on site, designated trained rescuers, release suspension within minutes")
+        rescue_bits.append(T(
+            "Fall rescue: rescue kit and descent device available on site; designated trained rescue personnel; "
+            "release suspension promptly to prevent suspension trauma",
+            "高處墮下救援：工地備有救援套件及下降器材；指定已受訓救援人員；及時解除懸吊以防懸吊創傷"))
     if bmu:
-        rescue_bits.append("吊籠被困：啟動緊急手動下降程序；如失效通知管理處 / 專業承辦商 / 消防處"
-                           " Trapped cradle: emergency manual descent; escalate to building management / specialist contractor / Fire Services")
+        rescue_bits.append(T(
+            "Trapped cradle: apply the emergency manual descent procedure; if ineffective, escalate to building "
+            "management, the specialist contractor and the Fire Services Department",
+            "吊籠被困：啟動緊急手動下降程序；如無效，通知管理處、專業承辦商及消防處"))
     if confined:
-        rescue_bits.append("密閉空間：候命人員配救援三腳架及呼吸器，嚴禁未經保護進入救人"
-                           " Confined space: standby person with tripod & BA set; no unprotected rescue entry")
-    rescue_bits.append("「只召喚 999」不視為救援計劃 Calling 999 alone is not a rescue plan")
+        rescue_bits.append(T(
+            "Confined space: standby person with rescue tripod and breathing apparatus; entry for rescue without "
+            "protection is prohibited",
+            "密閉空間：候命人員配備救援三腳架及呼吸器；嚴禁未經保護進入救援"))
+    rescue_bits.append(T(
+        "Calling emergency services alone shall not be relied upon as the sole rescue arrangement; a site-specific "
+        "rescue plan, rescue equipment and trained rescue personnel shall be in place before work commences",
+        "不得只依賴召喚 999 作為唯一救援安排；開工前必須制定現場專用救援計劃，並備有救援器材及已受訓救援人員"))
 
     emergency = {
         "foreseeable_scenarios": scenarios,
-        "rescue_plan": "；".join(rescue_bits),
-        "first_aid": "按 Cap. 59 急救規定配備急救員及急救箱；急救箱位置須於開工前簡介 First aiders and first-aid box per Cap. 59; location briefed before work",
-        "emergency_contacts": "工地管理 / 安全主任 / 最近急症室（只列職位，不列私人資料）Site management / Safety Officer / nearest A&E (roles only)",
-        "assembly_point": "地盤指定集合點；點名核實人數 Designated assembly point with headcount",
-        "adverse_weather_arrangements": "八號風球 / 雷暴 / 暴雨警告：停工、固定設備及物料、撤離高處及戶外崗位；停工及復工風速限制以製造商手冊、已批准施工方法書及工地規定中較嚴者為準"
-                                        " T8 / thunderstorm / rainstorm: stop work, secure plant & materials, withdraw from height and outdoor positions; wind-speed limits per manufacturer's manual / approved MS / site rules, whichever is stricter",
+        "rescue_plan": T("; ", "；").join(rescue_bits),
+        "first_aid": T(
+            "First aiders and first-aid box provided per Cap. 59 first aid requirements; location briefed before work. "
+            "[To be completed by site team: first aider names and first-aid box location]",
+            "按 Cap. 59 急救規定配備急救員及急救箱；開工前簡介位置。[由工地團隊填寫：急救員姓名及急救箱位置]"),
+        "emergency_contacts": T(
+            "[To be completed by site team: emergency contact names, phone numbers / radio channel, first aider, "
+            "rescue team leader and nearest A&E hospital]",
+            "[由工地團隊填寫：緊急聯絡人姓名、電話 / 對講機頻道、急救員、救援隊負責人及最近急症室]"),
+        "assembly_point": T(
+            "Designated site assembly point with headcount procedure. [To be completed by site team: assembly point location]",
+            "地盤指定集合點及點名核實程序。[由工地團隊填寫：集合點位置]"),
+        "adverse_weather_arrangements": T(
+            "On typhoon signal T8, thunderstorm or rainstorm warning: stop work, secure plant and materials, withdraw "
+            "workers from height and outdoor positions; stop-work and resumption criteria (including any wind speed "
+            "limit) shall follow the manufacturer's manual, the approved Method Statement and site safety rules, "
+            "whichever is stricter",
+            "八號風球、雷暴或暴雨警告時：停工、固定機械及物料、撤離高處及戶外崗位；停工及復工準則（包括風速限制）"
+            "以製造商手冊、已批准施工方法書及工地安全規定中較嚴者為準"),
     }
 
     training: list[dict[str, str]] = [{
-        "role": "所有工人 All workers",
-        "required_training_certificate": "平安咭 Green Card（強制基本安全訓練）+ 開工前簡介 / 工具箱會 toolbox talk",
-        "legal_basis": "Cap. 59 F&IU (Safety Training) 規例",
-        "expiry_renewal": "平安咭每 3 年續期 renew every 3 years",
-        "record_location": "地盤安全檔案 Site safety file",
+        "role": T("All workers", "所有工人"),
+        "required_training_certificate": T("Green Card (mandatory basic safety training) plus pre-work briefing / toolbox talk",
+                                           "平安咭（強制基本安全訓練）及開工前簡介 / 工具箱會"),
+        "legal_basis": T("Cap. 59 F&IU (Safety Training) Regulation", "Cap. 59 工廠及工業經營（安全訓練）規例"),
+        "expiry_renewal": T("Green Card renewal every 3 years", "平安咭每 3 年續期"),
+        "record_location": T("Site safety file", "地盤安全檔案"),
     }]
-    if bmu:
+
+    def _training(role_en: str, role_zh: str, cert_en: str, cert_zh: str, basis_en: str, basis_zh: str) -> None:
         training.append({
-            "role": "吊船操作員 SWP/BMU operator",
-            "required_training_certificate": "吊船操作訓練證書 SWP operation training certificate",
-            "legal_basis": "Cap. 59AC / 吊船 CoP",
-            "expiry_renewal": "按證書列明 per certificate",
-            "record_location": "地盤安全檔案 Site safety file",
-        })
-        training.append({
-            "role": "註冊電業工程人員 Registered electrical worker",
-            "required_training_certificate": "電業工程人員註冊證明（380V 接駁）Registration for electrical work",
-            "legal_basis": "電力（註冊）規例 Electricity (Registration) Regulations",
-            "expiry_renewal": "按註冊有效期 per registration validity",
-            "record_location": "地盤安全檔案 Site safety file",
-        })
-    if scaffold:
-        training.append({
-            "role": "搭棚工人 Scaffolder",
-            "required_training_certificate": "竹棚架工藝訓練證書 Bamboo scaffolder training certificate",
-            "legal_basis": "Cap. 59I; 竹棚架安全工作守則 CoP for Bamboo Scaffolding Safety",
-            "expiry_renewal": "按證書列明 per certificate",
-            "record_location": "地盤安全檔案 Site safety file",
-        })
-    if lifting:
-        training.append({
-            "role": "吊機操作員 / 信號員 Crane operator / signaller",
-            "required_training_certificate": "操作員證書及信號員訓練紀錄 Operator certificate & signaller training record",
-            "legal_basis": "Cap. 59J LALG 規例",
-            "expiry_renewal": "按證書列明 per certificate",
-            "record_location": "地盤安全檔案 Site safety file",
-        })
-    if confined:
-        training.append({
-            "role": "核准工人 / 候命人員 Certified worker / standby person",
-            "required_training_certificate": "密閉空間核准工人證書 Confined space certified worker",
-            "legal_basis": "Cap. 59AE",
-            "expiry_renewal": "按證書列明 per certificate",
-            "record_location": "地盤安全檔案 Site safety file",
+            "role": T(role_en, role_zh),
+            "required_training_certificate": T(cert_en, cert_zh),
+            "legal_basis": T(basis_en, basis_zh),
+            "expiry_renewal": T("Per certificate", "按證書列明"),
+            "record_location": T("Site safety file", "地盤安全檔案"),
         })
 
+    if bmu:
+        _training("SWP / BMU operator", "吊船操作員",
+                  "SWP operation training certificate", "吊船操作訓練證書",
+                  "Cap. 59AC / SWP CoP", "Cap. 59AC / 吊船工作守則")
+    if scaffold:
+        _training("Scaffolder", "搭棚工人",
+                  "Bamboo scaffolder training certificate", "竹棚架工藝訓練證書",
+                  "Cap. 59I; CoP for Bamboo Scaffolding Safety", "Cap. 59I；竹棚架安全工作守則")
+    if lifting:
+        _training("Lifting supervisor", "吊運督導",
+                  "Lifting supervisor training", "吊運督導訓練",
+                  "Cap. 59J LALG Regulations", "Cap. 59J 起重機械及起重裝置規例")
+        _training("Rigger / slinger / signaller", "索具工 / 掛鉤工 / 信號員",
+                  "Rigger and signaller training record", "索具及信號員訓練紀錄",
+                  "Cap. 59J LALG Regulations", "Cap. 59J 起重機械及起重裝置規例")
+        _training("Competent person - lifting gear pre-use inspection", "合資格人士（吊具使用前檢查）",
+                  "Competent person appointment and training", "合資格人士委任及訓練",
+                  "Cap. 59J LALG Regulations", "Cap. 59J 起重機械及起重裝置規例")
+    if transport:
+        _training("Forklift operator", "叉車操作員",
+                  "Forklift operator certificate", "叉車操作員證書",
+                  "F&IU (Loadshifting Machinery) Regulation", "工廠及工業經營（移土機械）規例")
+        _training("Electric pallet jack authorised operator", "電動唧車獲授權操作員",
+                  "In-house authorisation and operation briefing", "公司內部授權及操作簡介",
+                  "Company SMS", "公司安全管理系統")
+    if electrical:
+        _training("Registered electrical worker (REW)", "註冊電業工程人員（REW）",
+                  "Electrical worker registration", "電業工程人員註冊證明",
+                  "Electricity (Registration) Regulations", "電力（註冊）規例")
+    if temp_works or concreting:
+        _training("Temporary Works Coordinator (TWC) / falsework competent person", "臨時工程統籌員（TWC）/ 假支架合資格人士",
+                  "Temporary works / falsework inspection competency", "臨時工程 / 假支架檢查資格",
+                  "Temporary works procedures; T4 inspection requirement", "臨時工程程序；T4 檢查要求")
+    if cutting:
+        _training("Rebar scanner / utility locator operator", "鋼筋探測 / 地下設施探測操作員",
+                  "Scanner operation training", "探測儀器操作訓練",
+                  "Site requirements before drilling / cutting", "鑽孔 / 切割前工地要求")
+    if at_height:
+        _training("Competent person - working platform / access equipment", "合資格人士（工作台 / 通道設備）",
+                  "Working platform inspection competency", "工作台檢查資格",
+                  "Cap. 59I Construction Sites (Safety) Regulations", "Cap. 59I 建築地盤（安全）規例")
+    if confined:
+        _training("Certified worker / standby person (confined space)", "核准工人 / 候命人員（密閉空間）",
+                  "Confined space certified worker", "密閉空間核准工人證書",
+                  "Cap. 59AE", "Cap. 59AE 密閉空間規例")
+    _training("First aider / rescue team member", "急救員 / 救援隊成員",
+              "First aid certificate; rescue drill record", "急救證書；救援演習紀錄",
+              "Cap. 59 first aid requirements", "Cap. 59 急救規定")
+
     inspection: list[dict[str, str]] = [{
-        "item": "機械、工具及通道設備開工前檢查 Pre-use check of plant, tools and access",
-        "frequency": "每天開工前 daily before work",
-        "by_whom": "工地監督 / 操作員 Site supervisor / operator",
-        "record_form": "每日檢查表 Daily checklist",
+        "item": T("Pre-use check of plant, tools and access equipment", "機械、工具及通道設備開工前檢查"),
+        "frequency": T("Daily before work", "每天開工前"),
+        "by_whom": T("Site supervisor / operator", "工地監督 / 操作員"),
+        "record_form": T("Daily checklist", "每日檢查表"),
     }, {
-        "item": "安全主任 / 監督巡查 Safety walk",
-        "frequency": "每週最少一次（高風險工序每天）weekly minimum; daily for high-risk stages",
-        "by_whom": "安全主任 / 安全督導員 Safety Officer / Safety Supervisor",
-        "record_form": "巡查報告 Inspection report",
+        "item": T("Safety Officer / supervisor safety walk", "安全主任 / 監督安全巡查"),
+        "frequency": T("Weekly minimum; daily during high-risk stages", "每週最少一次；高風險工序期間每天"),
+        "by_whom": T("Safety Officer / Safety Supervisor", "安全主任 / 安全督導員"),
+        "record_form": T("Inspection report", "巡查報告"),
     }, {
-        "item": "工具箱會 / 方法書簡介 Toolbox talk / MS briefing",
-        "frequency": "開工前及每週 before start and weekly",
-        "by_whom": "工地監督 Site supervisor",
-        "record_form": "出席紀錄 Attendance record",
+        "item": T("Toolbox talk / Method Statement briefing", "工具箱會 / 施工方法書簡介"),
+        "frequency": T("Before start and weekly", "開工前及每週"),
+        "by_whom": T("Site supervisor", "工地監督"),
+        "record_form": T("Attendance record", "出席紀錄"),
     }, {
-        "item": "風險評估檢討 RA review",
-        "frequency": "工法 / 環境改變、事故後或最遲每 12 個月 on change of method/conditions, after incident, or at least every 12 months",
-        "by_whom": "安全主任 Safety Officer",
-        "record_form": "RA 修訂紀錄 RA revision record",
+        "item": T("Risk assessment review", "風險評估檢討"),
+        "frequency": T("On change of method / conditions, after incident, or at least every 12 months",
+                       "工法 / 環境改變、事故後，或最遲每 12 個月"),
+        "by_whom": T("Safety Officer", "安全主任"),
+        "record_form": T("RA revision record", "風險評估修訂紀錄"),
     }]
     if scaffold:
         inspection.insert(0, {
-            "item": "棚架檢查（表格五）Scaffold inspection (Form 5)",
-            "frequency": "每 14 天及惡劣天氣後 every 14 days and after adverse weather",
-            "by_whom": "合資格人士 Competent person",
-            "record_form": "表格五 Form 5",
+            "item": T("Scaffold inspection (Form 5)", "棚架檢查（表格五）"),
+            "frequency": T("Every 14 days and after adverse weather", "每 14 天及惡劣天氣後"),
+            "by_whom": T("Competent person", "合資格人士"),
+            "record_form": "Form 5",
         })
     if bmu:
         inspection.insert(0, {
-            "item": "吊船每週檢查（Form 1）及使用前檢查 SWP weekly (Form 1) and pre-use checks",
-            "frequency": "每週及每天使用前 weekly and daily before use",
-            "by_whom": "合資格人士 Competent person",
-            "record_form": "SWP Form 1 / 每日檢查表",
+            "item": T("SWP weekly inspection (Form 1) and daily pre-use checks", "吊船每週檢查（Form 1）及每天使用前檢查"),
+            "frequency": T("Weekly and daily before use", "每週及每天使用前"),
+            "by_whom": T("Competent person", "合資格人士"),
+            "record_form": T("SWP Form 1 / daily checklist", "SWP Form 1 / 每日檢查表"),
         })
     if lifting:
         inspection.append({
-            "item": "吊具及索具檢查 Lifting gear inspection",
-            "frequency": "每次使用前 before each use",
-            "by_whom": "合資格人士 Competent person",
-            "record_form": "吊具登記冊 Lifting gear register",
+            "item": T("Lifting gear and anchor point inspection", "吊具及錨固點檢查"),
+            "frequency": T("Before each use", "每次使用前"),
+            "by_whom": T("Competent person", "合資格人士"),
+            "record_form": T("Lifting gear register", "吊具登記冊"),
+        })
+    if temp_works or concreting:
+        inspection.append({
+            "item": T("Back-propping / falsework / formwork and rebar inspection before casting (T4)",
+                      "回頂 / 假支架 / 模板及鋼筋澆築前檢查（T4）"),
+            "frequency": T("Before loading and before each concrete pour", "受力前及每次澆築混凝土前"),
+            "by_whom": T("TWC / SRP / engineer", "TWC / SRP / 工程師"),
+            "record_form": T("T4 inspection certificate", "T4 檢查證明"),
+        })
+    if cutting:
+        inspection.append({
+            "item": T("Openings formed after demolition: covers, guardrails and toe boards in place",
+                      "拆卸後形成之孔洞：即時加蓋或設置完整護欄及踢腳板"),
+            "frequency": T("Immediately after forming and daily thereafter", "形成後即時及其後每天"),
+            "by_whom": T("Site supervisor", "工地監督"),
+            "record_form": T("Daily checklist / inspection report", "每日檢查表 / 巡查報告"),
         })
 
     return {
