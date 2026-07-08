@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import re
 from io import BytesIO
 from typing import Any
 
 import pandas as pd
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.utils import get_column_letter
 
 from services.ai_prompts import DISCLAIMER
 
@@ -36,6 +39,89 @@ def matrix_rows(matrix: dict[str, Any]) -> list[dict[str, Any]]:
                 }
             )
     return rows
+
+
+_HEADER_FILL = PatternFill("solid", fgColor="1F4D78")
+_HEADER_FONT = Font(bold=True, color="FFFFFF", size=11)
+_BAND_FILL = PatternFill("solid", fgColor="F2F6FA")
+_THIN = Side(style="thin", color="9AA7B4")
+_BORDER = Border(left=_THIN, right=_THIN, top=_THIN, bottom=_THIN)
+_RISK_FILLS = {
+    "LR": PatternFill("solid", fgColor="C6EFCE"),
+    "MR": PatternFill("solid", fgColor="FFEB9C"),
+    "HR": PatternFill("solid", fgColor="FFC7CE"),
+}
+_ALERT_FONT = Font(bold=True, color="C00000")
+
+# Column widths tuned per sheet; anything unlisted gets a sensible default.
+_SHEET_WIDTHS = {
+    "Cover": [26, 90],
+    "MS Steps": [8, 110],
+    "MS Extract": [24, 110],
+    "Signatures": [30, 24, 24, 18],
+    "PPE": [8, 40, 55],
+    "Risk Matrix": [24, 24, 10, 12, 60],
+}
+
+
+def _risk_level_in(value: str) -> str:
+    match = re.search(r"\b(LR|MR|HR)\b", str(value or ""))
+    return match.group(1) if match else ""
+
+
+def _style_workbook(book) -> None:
+    """Format every sheet as a proper bordered, colour-coded table.
+
+    Raw pandas dumps have no gridlines or fills, which reads as unfinished in
+    a contractor deliverable. Header row gets the report blue, all cells get
+    thin borders and wrapping, and risk-rating cells are colour-banded
+    (green LR / amber MR / red HR) with residual MR/HR flagged in bold red.
+    """
+    for sheet in book.worksheets:
+        if sheet.max_row < 1:
+            continue
+        headers = [str(cell.value or "") for cell in sheet[1]]
+        risk_columns = {
+            idx
+            for idx, header in enumerate(headers, start=1)
+            if any(token in header for token in ("Risk Level", "Initial Risk", "Residual Risk", "Score"))
+        }
+        residual_columns = {idx for idx, header in enumerate(headers, start=1) if "Residual" in header}
+        for cell in sheet[1]:
+            cell.fill = _HEADER_FILL
+            cell.font = _HEADER_FONT
+            cell.border = _BORDER
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        for row in sheet.iter_rows(min_row=2):
+            for cell in row:
+                cell.border = _BORDER
+                cell.alignment = Alignment(vertical="top", wrap_text=True)
+                if cell.row % 2 == 0:
+                    cell.fill = _BAND_FILL
+                if cell.column in risk_columns:
+                    level = _risk_level_in(cell.value)
+                    if level:
+                        cell.fill = _RISK_FILLS[level]
+                        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+                    if cell.column in residual_columns and level in {"MR", "HR"}:
+                        cell.font = _ALERT_FONT
+        widths = _SHEET_WIDTHS.get(sheet.title)
+        for idx in range(1, sheet.max_column + 1):
+            if widths and idx <= len(widths):
+                width = widths[idx - 1]
+            else:
+                width = 28 if sheet.title == "RA Table" else 22
+            sheet.column_dimensions[get_column_letter(idx)].width = width
+        if sheet.title == "RA Table":
+            # Narrow columns where long text is not expected.
+            for idx, header in enumerate(headers, start=1):
+                if header in {"Item", "P", "IC"}:
+                    sheet.column_dimensions[get_column_letter(idx)].width = 8
+                elif "Risk" in header:
+                    sheet.column_dimensions[get_column_letter(idx)].width = 16
+            sheet.freeze_panes = "C2"
+        else:
+            sheet.freeze_panes = "A2"
 
 
 def build_ra_excel(report: dict[str, Any], ra_rows: list[dict[str, Any]], matrix: dict[str, Any] | None = None) -> BytesIO:
@@ -105,5 +191,7 @@ def build_ra_excel(report: dict[str, Any], ra_rows: list[dict[str, Any]], matrix
 
         visible_ra_rows = [{key: value for key, value in row.items() if key not in INTERNAL_RA_COLUMNS} for row in ra_rows]
         pd.DataFrame(visible_ra_rows).to_excel(writer, sheet_name="RA Table", index=False)
+
+        _style_workbook(writer.book)
     buffer.seek(0)
     return buffer

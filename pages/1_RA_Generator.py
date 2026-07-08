@@ -558,7 +558,7 @@ def _zh_item_from_record(record: dict, matrix: dict) -> dict:
     item["hazard_id"] = str(record.get("id", ""))
     item["hazard_category"] = str(record.get("category", ""))
     item["initial_risk_rating"] = _rating_from_matrix(matrix, likelihood, severity)
-    item["residual_risk_rating"] = _residual_rating_from_matrix(matrix, severity)
+    item["residual_risk_rating"] = _residual_rating_from_matrix(matrix, severity, str(item.get("hazard", "")) + " " + str(item.get("possible_consequence", "")))
     return item
 
 
@@ -618,7 +618,7 @@ def _fallback_ra_zh(data: dict) -> RADraft:
             if matched is None:
                 item = {
                     "initial_risk_rating": _rating_from_matrix(matrix, 2, 5),
-                    "residual_risk_rating": _residual_rating_from_matrix(matrix, 5),
+                    "residual_risk_rating": _residual_rating_from_matrix(matrix, 5, str(matched.get("hazards", "")) if matched else ""),
                     **ZH_GENERIC_ITEM,
                 }
             else:
@@ -747,17 +747,33 @@ def _rating_from_matrix(matrix: dict, likelihood: int, severity: int) -> str:
     return f"P{likelihood} x S{severity} = {score} {level}"
 
 
-def _residual_rating_from_matrix(matrix: dict, severity: int) -> str:
+# Hazard themes whose worst credible outcome stays fatal no matter the
+# controls: if it happens at all, it kills. Controls only cut likelihood, so
+# the residual stays P1 x S5 = 5 MR (red-flagged, ALARP acceptance required).
+_SEVERITY_IRREDUCIBLE_TOKENS = (
+    "觸電", "electrocut", "electric shock",
+    "倒塌", "坍塌", "collapse",
+    "叉車", "forklift", "唧車", "車輛", "vehicle", "plant strike",
+    "壓傷", "crush", "被困", "trapped",
+    "公眾", "public", "行人", "pedestrian",
+    "結構", "structural", "假支架", "falsework", "回頂",
+)
+
+
+def _residual_rating_from_matrix(matrix: dict, severity: int, hazard_text: str = "") -> str:
     """Residual rating after ALL additional controls are in place.
 
-    Likelihood drops to P1, and for S4/S5 hazards the credible worst outcome
-    drops one notch too: the encoded additional controls (fall arrest,
-    exclusion zone, physical barriers, LOTO, CP supervision) change what can
-    credibly happen, not just how often. This lands residuals at 1-4 = LR on
-    the HK 5x5 bands — the acceptance criterion the report states — instead
-    of a permanent P1 x S5 = 5 MR floor that reads as inadequate controls.
+    Likelihood drops to P1. Severity drops ONE notch only where the encoded
+    additional controls genuinely change the credible worst outcome (e.g.
+    certified fall arrest turns an unarrested fatal fall into an arrested
+    fall with injury). For electrocution, plant strike, structural collapse,
+    crushing and public struck-by hazards the outcome stays fatal, so S5 is
+    kept and the row surfaces as 5 MR for explicit ALARP acceptance — a
+    blanket S5->S4 drop on every row reads as manipulated and fails review.
     """
-    residual_severity = severity - 1 if severity >= 4 else severity
+    text = str(hazard_text or "").lower()
+    keep_severity = any(token in text for token in _SEVERITY_IRREDUCIBLE_TOKENS)
+    residual_severity = severity if (keep_severity or severity < 4) else severity - 1
     return _rating_from_matrix(matrix, 1, residual_severity)
 
 
@@ -995,7 +1011,7 @@ def bmu_item_for_step(data: dict, hazard_id: str) -> dict:
         "initial_risk_rating": _rating_from_matrix(matrix, likelihood, severity),
         "existing_control_measures": info["existing"],
         "additional_control_measures_required": info["additional"],
-        "residual_risk_rating": _residual_rating_from_matrix(matrix, severity),
+        "residual_risk_rating": _residual_rating_from_matrix(matrix, severity, str(info.get("hazard", "")) + " " + str(info.get("consequence", ""))),
         "legal_cop_reference": BMU_TC_LEGAL,
         # Row-specific competency (RPE only on load-test rows, electrician on
         # power rows etc.) instead of one repeated block on every row.
@@ -1039,7 +1055,7 @@ def scaffold_required_row(data: dict, hazard_id: str, source: dict[str, str], ch
             "Initial Risk": _rating_from_matrix(matrix, 3, 5),
             "Existing Controls": "按已批准施工方案及拆棚次序施工；由合資格人士監督；設置禁區、圍欄及警告標誌；使用安全帶及獨立救生繩；禁止拋擲竹枝或物料",
             "Additional Controls Required": "開工前核實表格五 / 棚架檢查紀錄；確認牆拉結遷移及臨時支撐安排；逐段由上而下拆卸；惡劣天氣停工及復工前再檢查；確認墮下及墮物救援安排",
-            "Residual Risk": _residual_rating_from_matrix(matrix, 5),
+            "Residual Risk": _residual_rating_from_matrix(matrix, 5, "棚架 惡劣天氣"),
             "Legal / CoP Reference": "香港職安健法例、建築地盤安全規例、竹棚架安全守則及勞工處相關指引",
             "Permit / Competent Person": "如工程安全制度要求，須使用拆棚 / 改棚工作許可；表格五及合資格人士檢查須由安全主任核實",
             "Inspection / Monitoring": "每日開工前檢查；合資格人士持續監督；拆除牆拉結前後檢查；惡劣天氣後復工檢查；保存檢查紀錄",
@@ -1060,7 +1076,7 @@ def scaffold_required_row(data: dict, hazard_id: str, source: dict[str, str], ch
         "Initial Risk": _rating_from_matrix(matrix, 3, 5),
         "Existing Controls": "Follow approved dismantling method and sequence; competent person supervision; exclusion zone, barriers and warning signs; safety harness with independent lifeline; no throwing or flying bamboo",
         "Additional Controls Required": "Verify Form 5 / scaffold inspection record before work; confirm wall-tie relocation and temporary bracing; dismantle top-down by stage; suspend work in adverse weather and inspect before restart; confirm fall and falling-object rescue arrangement",
-        "Residual Risk": _residual_rating_from_matrix(matrix, 5),
+        "Residual Risk": _residual_rating_from_matrix(matrix, 5, "scaffold adverse weather"),
         "Legal / CoP Reference": "Hong Kong OSH legislation, Construction Sites (Safety) Regulations, Code of Practice for Bamboo Scaffolding Safety and Labour Department guidance",
         "Permit / Competent Person": "Permit-to-work for scaffold dismantling / alteration, if required by project safety system; Form 5 and competent person inspection to be verified by Safety Officer",
         "Inspection / Monitoring": "Daily pre-work inspection; full-time competent person supervision; inspection before and after wall-tie removal; post-weather restart inspection; inspection record retention",
@@ -1169,7 +1185,7 @@ def ensure_required_ra_rows(data: dict, rows: list[dict[str, str]]) -> list[dict
                 "Initial Risk": _rating_from_matrix(matrix, 2, 5),
                 "Existing Controls": ZH_GENERIC_ITEM["existing_control_measures"],
                 "Additional Controls Required": ZH_GENERIC_ITEM["additional_control_measures_required"],
-                "Residual Risk": _residual_rating_from_matrix(matrix, 5),
+                "Residual Risk": _residual_rating_from_matrix(matrix, 5, str(ZH_GENERIC_ITEM.get("hazard", ""))),
                 "Legal / CoP Reference": ZH_GENERIC_ITEM["legal_cop_reference"],
                 "Permit / Competent Person": ZH_GENERIC_ITEM["permit_certificate_competent_person_required"],
                 "Inspection / Monitoring": ZH_GENERIC_ITEM["inspection_monitoring_points"],
@@ -1186,7 +1202,7 @@ def ensure_required_ra_rows(data: dict, rows: list[dict[str, str]]) -> list[dict
             "Initial Risk": _rating_from_matrix(matrix, 2, 5),
             "Existing Controls": "Follow approved Method Statement; pre-work briefing; provide safe working platform and access; establish exclusion zone and warning signs; use suitable PPE",
             "Additional Controls Required": "Competent person inspection of relevant platform, scaffold or equipment; enhanced supervision; stage-by-stage work sequence; maintain good housekeeping",
-            "Residual Risk": _residual_rating_from_matrix(matrix, 5),
+            "Residual Risk": _residual_rating_from_matrix(matrix, 5, "work at height falling material"),
             "Legal / CoP Reference": "Hong Kong OSH legislation, Labour Department guidance and relevant Codes of Practice",
             "Permit / Competent Person": "Working-at-height training, toolbox talk and competent person inspection as required by project",
             "Inspection / Monitoring": "Pre-work inspection; active monitoring; close-out inspection and record",
@@ -1266,7 +1282,7 @@ def ensure_required_ra_rows(data: dict, rows: list[dict[str, str]]) -> list[dict
             "Initial Risk": _rating_from_matrix(matrix, 3, 5),
             "Existing Controls": "Set up barriers, warning signs and exclusion zones; maintain clear access route; supervise lifting or material movement; keep work area tidy",
             "Additional Controls Required": "Provide covered walkway or catch-fan where required; appoint banksman / traffic marshal; schedule high-risk work outside peak public interface periods; communicate with affected parties",
-            "Residual Risk": _residual_rating_from_matrix(matrix, 5),
+            "Residual Risk": _residual_rating_from_matrix(matrix, 5, "public interface 公眾"),
             "Legal / CoP Reference": "Hong Kong OSH legislation, public protection requirements and project traffic / pedestrian management plan",
             "Permit / Competent Person": "Permit / temporary traffic or public protection arrangement where applicable",
             "Inspection / Monitoring": "Daily inspection of barriers, signs, public route and dropped-object controls",
@@ -1301,7 +1317,7 @@ def ensure_required_ra_rows(data: dict, rows: list[dict[str, str]]) -> list[dict
             "Initial Risk": _rating_from_matrix(matrix, 3, 5),
             "Existing Controls": "設置圍欄、警告標誌及禁區；保持通道暢通；監督吊運或物料搬運；保持工作區整潔",
             "Additional Controls Required": "按需要設置有蓋通道或接物防護；委任訊號員 / 交通指揮員；避開公眾介面高峰時段進行高風險工作；通知受影響人士",
-            "Residual Risk": _residual_rating_from_matrix(matrix, 5),
+            "Residual Risk": _residual_rating_from_matrix(matrix, 5, "公眾 public interface"),
             "Legal / CoP Reference": "香港職安健法例、公眾保護要求及工程交通 / 行人管理計劃",
             "Permit / Competent Person": "如適用須取得臨時交通或公眾保護安排批准",
             "Inspection / Monitoring": "每日檢查圍欄、標誌、公眾通道及防墮物控制措施",
@@ -1820,7 +1836,21 @@ if submitted:
         ai_project_name = "" if not ai_ms_extraction else ai_ms_extraction.project_name
         ai_document_title = "" if not ai_ms_extraction else ai_ms_extraction.document_title
         activity_value = activity.strip() or (ai_activity if ai_activity and ai_activity != "To be confirmed" else f"Works described in uploaded Method Statement: {ms_file_name}")
-        location_value = location.strip() or "To be confirmed from Method Statement / project information"
+        # Project name must not ship as "To be confirmed" on a formal report:
+        # derive it from the MS document title, the activity, or the file name
+        # (e.g. "TX Room Modification Works") when the user leaves it blank.
+        def _derived_project_name() -> str:
+            for candidate in (ai_project_name, ai_document_title, ai_activity):
+                candidate = str(candidate or "").strip()
+                if candidate and candidate != "To be confirmed":
+                    return candidate
+            if ms_file_name:
+                stem = re.sub(r"[_\-]+", " ", ms_file_name.rsplit(".", 1)[0]).strip()
+                stem = re.sub(r"\s*\(\d+\)$", "", stem)
+                if stem:
+                    return f"{stem} Works" if not re.search(r"[一-鿿]", stem) and "works" not in stem.lower() else stem
+            return "To be confirmed from Method Statement / project information"
+        location_value = location.strip() or _derived_project_name()
         # getattr: survive Streamlit partial hot-reload where the page is new but
         # already-imported service modules (old schema) have not restarted yet.
         ai_equipment = str(getattr(ai_ms_extraction, "plant_equipment", "") or "").strip()
@@ -2211,7 +2241,15 @@ if st.session_state.get("ra_stage") == "generated" and "ra_draft" in st.session_
     if pre_flags.get("hot_work") == "Yes":
         statutory_extra.append("《氣體焊接及火焰切割安全守則》及消防安全要求 — 僅適用於涉及燒焊 / 火焰切割工序")
     if any(t in steps_corpus.lower() for t in ["拆卸", "打拆", "切割", "鑽孔", "鑽切", "demolition", "coring", "concrete cutting"]):
-        statutory_extra.append("Cap. 59I 建築地盤(安全)規例 — 樓面開口即時加蓋 / 護欄及踢腳板、臨邊保護及通道安全")
+        statutory_extra += [
+            "Cap. 59 工廠及工業經營條例 (Factories and Industrial Undertakings Ordinance)",
+            "Cap. 59I 建築地盤(安全)規例 — 樓面開口即時加蓋 / 護欄及踢腳板、臨邊保護及通道安全",
+            "噪音、粉塵、手工具及手提電動工具之工地安全要求",
+        ]
+    if any(t in steps_corpus for t in ["回頂", "假支架", "模板", "植筋", "扎鐵", "紮鐵", "澆築"]) or any(t in steps_corpus.lower() for t in ["falsework", "formwork"]):
+        statutory_extra.append("臨時工程要求 — TWC / SRP 檢查、假支架及模板設計核准、澆築前 T4 檢查簽署")
+    # Multiple triggers can add the same ordinance; keep first occurrence order.
+    statutory_extra = list(dict.fromkeys(statutory_extra))
 
     report = {
         "title": data["project"],
@@ -2278,6 +2316,32 @@ if st.session_state.get("ra_stage") == "generated" and "ra_draft" in st.session_
 
     docx = docx_export.build_ra_docx(report, rows, data.get("risk_matrix", {}), sections)
     xlsx = build_ra_excel(report, rows, data.get("risk_matrix", {}))
+    # Branded download buttons: Word blue, Excel green (matching each app's
+    # own colour), white bold text so they read as the primary actions.
+    st.markdown(
+        """
+        <style>
+        div[data-testid="stDownloadButton"] button {
+            color: #ffffff !important;
+            font-weight: 700;
+            border: none;
+            border-radius: 8px;
+            padding: 0.6rem 1rem;
+            width: 100%;
+        }
+        div[data-testid="column"]:nth-of-type(1) div[data-testid="stDownloadButton"] button {
+            background: linear-gradient(135deg, #2B579A, #1F4D78);
+        }
+        div[data-testid="column"]:nth-of-type(2) div[data-testid="stDownloadButton"] button {
+            background: linear-gradient(135deg, #217346, #1A5C38);
+        }
+        div[data-testid="stDownloadButton"] button:hover {
+            filter: brightness(1.15);
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
     col1, col2 = st.columns(2)
     col1.download_button(UI["word"], docx, file_name="risk_assessment_report.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
     col2.download_button(UI["excel"], xlsx, file_name="risk_assessment_report.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
