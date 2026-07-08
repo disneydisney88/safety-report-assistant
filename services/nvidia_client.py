@@ -29,6 +29,19 @@ def has_api_key() -> bool:
     return bool(st.secrets.get("NVIDIA_API_KEY", ""))
 
 
+def configured_timeout(default: float = DEFAULT_TIMEOUT_SECONDS) -> float:
+    """User-tunable per-call timeout via the NVIDIA_TIMEOUT_SECONDS secret.
+
+    Callers scale their stage budgets from this (generation gets the full
+    value; extraction and section calls take a fraction) so switching to a
+    slower/faster provider only needs the one secret."""
+    try:
+        value = float(st.secrets.get("NVIDIA_TIMEOUT_SECONDS", default))
+    except (TypeError, ValueError):
+        return default
+    return min(max(value, 20.0), 600.0)
+
+
 def model_name() -> str:
     return st.secrets.get("NVIDIA_MODEL", DEFAULT_MODEL)
 

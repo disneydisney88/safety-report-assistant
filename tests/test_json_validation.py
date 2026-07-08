@@ -52,3 +52,16 @@ def test_ra_schema_supporting_sections_and_null_tolerance():
     # old drafts without the new fields still validate
     old = RADraft.model_validate({"disclaimer": DISCLAIMER, "items": []})
     assert old.permits_checklist == [] and old.emergency_arrangements is None
+
+
+def test_extraction_coerces_list_and_string_shapes():
+    from services.validators import MethodStatementExtraction
+
+    m = MethodStatementExtraction(
+        plant_equipment=["BMU", "material hoist"],
+        workforce_trades=["electrician", "signalman"],
+        work_steps="connect power supply",
+    )
+    assert m.plant_equipment == "BMU; material hoist"
+    assert m.workforce_trades == "electrician; signalman"
+    assert m.work_steps == ["connect power supply"]

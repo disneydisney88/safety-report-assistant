@@ -30,11 +30,14 @@ Example of a NON-step (title): "拆棚施工方案" -> document_title.
 Example of a NON-step (heading/control): "安全程序及措施" -> rejected_headings_or_controls.
 
 Also extract the following supporting details WHERE STATED in the document (leave empty if not stated; do not guess):
-- plant_equipment: plant, equipment, tools and materials mentioned.
-- workforce_trades: number of workers, trades and competency/certification mentioned (e.g. trained scaffolders, competent person).
-- working_height_environment: working height, location and environment (e.g. external wall, above 2m, near public road).
+- plant_equipment: plant, equipment, tools and materials mentioned (e.g. BMU, gondola, winch, material hoist, mobile crane, hand tools, 380V power supply).
+- workforce_trades: number of workers, trades and competency/certification mentioned (e.g. trained operators, electrician 電工, signaller 信號員, competent person, RPE).
+- working_height_environment: working height, location and environment (e.g. external wall, roof, above 2m, near public road, occupied building).
 - duration_time_of_work: duration, dates, day/night work if stated.
 - existing_safety_provisions: safety control measures the document itself specifies (each as one list entry, original wording).
+- permits_certificates_mentioned: permits, forms and certificates the document requires (e.g. permit-to-work, SWP Form 1/2/3, Form 5, LALG certificates, load test certificate signed by RPE, hot work permit).
+- ppe_mentioned: PPE the document itself requires (e.g. safety harness with double lanyard, helmet, safety shoes, gloves).
+These are string fields: write each as one short list joined by "; ". Copy the document's own wording; do not invent items the document does not state.
 
 Keep every work step in its original language and original wording. Preserve the original document order of the steps."""
 
@@ -68,7 +71,13 @@ Risk table rules:
 - Cause of hazard must be a real cause such as unsafe access, unprotected edge, unstable working platform, falling material, manual handling, insufficient exclusion zone, lack of supervision, poor housekeeping, plant movement, weather exposure or public interface. Do not use "confirm with approved Method Statement" as the cause.
 - Each item must include work_step, hazard, possible_consequence, persons_at_risk, initial_risk_rating, existing_control_measures, additional_control_measures_required, residual_risk_rating, legal_cop_reference, permit_certificate_competent_person_required, inspection_monitoring_points, responsible_person and remarks_items_to_be_confirmed.
 - initial_risk_rating and residual_risk_rating must use this format: P# x S# = score LR/MR/HR.
-- Residual risk should normally be MR or below after additional controls. If it remains HR, explain why and mark further review required.
+- Severity consistency (STRICT): the S rating must match the stated worst credible consequence. If possible_consequence mentions death, fatality, 致命, fall from height that could kill, platform/scaffold collapse, or a member of the public struck by a falling object, severity must be S5. Reserve S2-S3 for injuries such as cuts, hand injuries or simple fractures. Never write a fatal consequence with S4 or below - approvers will reject the row as inconsistent.
+- Residual risk target (STRICT): after additional_control_measures_required are applied, residual_risk_rating must normally be LR (score 1-4). Residual 5 or above means the additional controls are inadequate - strengthen them (engineering/administrative, not more PPE) until the credible residual is LR. If LR is genuinely not achievable for the task, keep the honest score and state in remarks why, plus "requires specific acceptance by senior management / Registered Safety Officer before work proceeds".
+- Rate each row on its own merits: likelihood and severity must vary between rows according to the actual hazard. A table where every row carries the same P x S rating is a defect.
+- Do not output two rows for the same function or hazard theme (e.g. one row "bypass button operation" and another row "bypass function test"). Merge them into ONE complete row covering: test-only use, key control, inching/slow mode, dedicated supervision, restoration after test, record keeping, and stop-use on failure.
+- Competency wording must be precise for the role, especially on BMU / suspended working platform work: 受訓操作員 trained operator (operates the platform), 合資格人士 competent person (inspects/supervises), 合資格檢驗員 competent examiner (thorough examination and test certificates), 註冊電業工程人員 registered electrical worker (electrical connection), RPE 註冊專業工程師 (witnesses load test and signs certificates where the MS requires). Never write a bare generic "CP" where a specific role is meant.
+- Numeric stop-work criteria (e.g. a wind speed limit) must be qualified: "subject to the manufacturer's manual, approved Method Statement and site safety rules, whichever is stricter". Never present a bare number as if it were a universal legal limit.
+- The training & PPE field must never be "無" / "None" / empty on a row with a real hazard: state the task-specific briefing and PPE (e.g. cut-resistant gloves and hand-safety briefing for hand injury rows; stop-work and securing procedure briefing for adverse weather rows).
 - Do not invent exact legal section numbers. Use general references such as Hong Kong OSH legislation, Labour Department guidance, relevant CoP, project rules, permit-to-work and competent person requirements.
 
 Mandatory hazard coverage:

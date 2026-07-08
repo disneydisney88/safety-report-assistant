@@ -943,9 +943,36 @@ def _add_supporting_sections(doc: Document, lbl: dict[str, str], language: str, 
         )
 
 
+def _renumber_section_labels(lbl: dict[str, str], sections: dict[str, Any]) -> dict[str, str]:
+    """Renumber the tail sections so headings stay consecutive.
+
+    The label tables carry default numbers assuming every supporting section
+    is present; when the AI omitted one, the report used to jump straight
+    from "6.0 PPE" to "11.0 checklist". Assign numbers by what will actually
+    render instead.
+    """
+    emergency = sections.get("emergency_arrangements") or {}
+    present = {
+        "ppe": True,
+        "permits": bool(sections.get("permits_checklist")),
+        "emergency": any(emergency.get(key) for key in _EMERGENCY_FIELD_LABELS["English"]),
+        "training": bool(sections.get("training_records")),
+        "monitoring": bool(sections.get("inspection_schedule")),
+        "checklist": True,
+        "approval": True,
+    }
+    renumbered = dict(lbl)
+    number = 6
+    for key in ("ppe", "permits", "emergency", "training", "monitoring", "checklist", "approval"):
+        if present[key]:
+            renumbered[key] = re.sub(r"^\d+\.0\s*", f"{number}.0 ", lbl[key])
+            number += 1
+    return renumbered
+
+
 def build_ra_docx(report: dict[str, Any], ra_rows: list[dict[str, Any]], matrix: dict[str, Any] | None = None, sections: dict[str, Any] | None = None) -> BytesIO:
     language = str(report.get("Report Language", "English"))
-    lbl = _labels(language)
+    lbl = _renumber_section_labels(_labels(language), sections or {})
     static = _static(language)
     doc = Document()
     section = doc.sections[0]

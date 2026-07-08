@@ -60,3 +60,23 @@ def test_rejects_concatenated_labels_and_buttons():
     ]
     steps = clean_extracted_steps(junk + real)
     assert steps == real
+
+
+def test_repairs_spaceless_pdf_steps():
+    from services.file_extract import clean_extracted_steps, repair_concatenated_english
+
+    broken = [
+        "Bypassbutton(bypassslackropelimit,downlimitsocagecanlandonground",
+        "Visualcheckallstructuralmembers,connections,",
+        "Visualcheckgondolaconnections,allnets&bolts",
+        "MethodofSiteTestingofBMU",  # heading, must be rejected even after repair
+    ]
+    steps = clean_extracted_steps(broken)
+    assert steps == [
+        "Bypass button (bypass slack rope limit, down limit so cage can land on ground",
+        "Visual check all structural members, connections,",
+        "Visual check gondola connections, all nets&bolts",
+    ]
+    # Healthy text must survive repair untouched.
+    ok = "Carry out static load test of the cage at 150% SWL witnessed by RPE."
+    assert repair_concatenated_english(ok) == ok

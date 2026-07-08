@@ -24,8 +24,8 @@ from services.language_tools import (
     normalize_rows_language,
     rows_language_mismatch_count,
 )
-from services.nvidia_client import generate_json, has_api_key, model_name, test_connection
-from services.pre_ra import FLAG_LABELS, build_pre_ra_sheet, format_pre_ra_for_prompt
+from services.nvidia_client import configured_timeout, generate_json, has_api_key, model_name, test_connection
+from services.pre_ra import FLAG_LABELS, build_default_sections, build_pre_ra_sheet, format_pre_ra_for_prompt
 from services.validators import MethodStatementExtraction, RADraft, RAItem
 
 st.set_page_config(page_title="RA Generator", layout="wide", initial_sidebar_state="collapsed")
@@ -1431,6 +1431,25 @@ def _slim_library_records(records: list[dict], limit: int = 6) -> list[dict]:
     return slim
 
 
+# Canonical activity grouping a formal BMU / suspended working platform T&C RA
+# must cover. Passed to the AI as mandatory coverage: report_7 review found the
+# 380V connection, trolley/jib/cradle motion and e-stop rows missing entirely.
+BMU_TC_REQUIRED_COVERAGE = [
+    "Pre-start briefing, permit-to-work, access control and exclusion zone",
+    "380V three-phase power supply connection, voltage check, isolator / key switch control, ELCB/RCD, cable protection and lock-out",
+    "Pre-use structural, rail, wire rope, connection and cable inspection",
+    "Roof trolley travelling and rail-end limit test",
+    "Jib / jibhead slewing and telescopic jib movement test",
+    "Cradle up/down, dual hoist synchronisation and individual hoist function test",
+    "Upper limit, lower obstruction bar, slack rope limit and emergency stop test",
+    "Bypass function test and restoration (single combined row)",
+    "Static load test of cage and material hoist (150% / 125% SWL, witnessed by RPE)",
+    "Post-load-test structural inspection and certification",
+    "Falling object, public interface and exclusion zone control",
+    "Adverse weather and emergency rescue arrangement",
+]
+
+
 def _ai_generation_payload(data: dict, batch: list[dict[str, str]], suppress_extra_rows: bool, include_sections: bool = True) -> dict:
     # Explicit whitelist instead of **data: the full session dict (keyword map,
     # 12 full library records, pre-RA sheet, 12k-char MS text, and the hidden
@@ -1457,6 +1476,17 @@ def _ai_generation_payload(data: dict, batch: list[dict[str, str]], suppress_ext
         "confirmed_steps": [record["step_text"] for record in batch],
         "confirmed_step_records": batch,
         "method_statement_text": data.get("method_statement_text", "")[:6000],
+        "mandatory_activity_coverage": (
+            BMU_TC_REQUIRED_COVERAGE if (is_bmu_swp_work(data) and not suppress_extra_rows) else []
+        ),
+        "coverage_instruction": (
+            "mandatory_activity_coverage lists the activity groups a formal RA for this work type MUST cover. "
+            "Map each confirmed step to one of these groups; add a dedicated row for any group the Method Statement "
+            "covers but the confirmed steps missed (e.g. 380V power connection, roof trolley travelling, jib slewing, "
+            "cradle/dual-hoist motion, emergency stop). Skip a group only if the Method Statement clearly shows it is "
+            "not part of this job."
+            if (is_bmu_swp_work(data) and not suppress_extra_rows) else ""
+        ),
         "hidden_report_prompt": build_hidden_report_prompt(data, batch, suppress_extra_rows, include_sections),
         "instruction": (
             "Prepare a professional Risk Assessment Report according to IEC 31010 and Hong Kong safety legislation / CoP. "
@@ -1485,15 +1515,19 @@ def generate_ra_with_ai(data: dict) -> tuple[RADraft | None, list[str], str | No
 
     # Single consolidated attempt (core RA rows only; supporting sections are a
     # cheaper second call so this one stays as small/fast as possible).
+    # Stage budgets scale from the NVIDIA_TIMEOUT_SECONDS secret so a slower
+    # provider (e.g. Gemini free tier) can simply be given more time.
+    gen_timeout = configured_timeout(100)
+    sec_timeout = max(45, int(gen_timeout * 0.6))
     single_payload = _ai_generation_payload(data, records, suppress_extra_rows=False, include_sections=False)
-    with st.spinner(f"Generating RA for {len(records)} steps (up to ~100s, else local draft)... / 一次過生成 {len(records)} 個工序（最多約 100 秒）..."):
-        draft, flags, error = generate_json(RA_SYSTEM_PROMPT, single_payload, RADraft, timeout_override=100)
+    with st.spinner(f"Generating RA for {len(records)} steps (up to ~{int(gen_timeout)}s, else local draft)... / 一次過生成 {len(records)} 個工序（最多約 {int(gen_timeout)} 秒）..."):
+        draft, flags, error = generate_json(RA_SYSTEM_PROMPT, single_payload, RADraft, timeout_override=gen_timeout)
     if draft is not None and draft.items:
         # Best-effort supporting sections as a small separate call.
         try:
             sec_payload = _ai_generation_payload(data, records[:1], suppress_extra_rows=True, include_sections=True)
-            with st.spinner("Adding permits / emergency / training sections (up to ~60s)... / 補充許可證及應急章節..."):
-                sec_draft, sec_flags, _sec_err = generate_json(RA_SYSTEM_PROMPT, sec_payload, RADraft, timeout_override=60)
+            with st.spinner(f"Adding permits / emergency / training sections (up to ~{sec_timeout}s)... / 補充許可證及應急章節..."):
+                sec_draft, sec_flags, _sec_err = generate_json(RA_SYSTEM_PROMPT, sec_payload, RADraft, timeout_override=sec_timeout)
             if sec_draft is not None:
                 draft = draft.model_copy(update={
                     "ppe_by_trade": sec_draft.ppe_by_trade,
@@ -1737,7 +1771,7 @@ if submitted:
                     extraction_payload,
                     MethodStatementExtraction,
                     options_override={"max_tokens": 3072},
-                    timeout_override=45,
+                    timeout_override=max(45, int(configured_timeout(100) * 0.5)),
                 )
                 ai_ms_extraction = extracted if isinstance(extracted, MethodStatementExtraction) else None
 
@@ -1773,6 +1807,31 @@ if submitted:
         ai_plant = str(getattr(ai_ms_extraction, "plant_equipment", "") or "").strip()
         if ai_plant and ai_plant not in pre_ra_sheet["plant_tools"]:
             pre_ra_sheet["plant_tools"].append(ai_plant)
+        # Facts the MS itself states (AI document extraction) enrich the sheet:
+        # trades/competency, environment, permits and PPE — only when stated.
+        ai_trades = str(getattr(ai_ms_extraction, "workforce_trades", "") or "").strip()
+        if ai_trades and ai_trades != "To be confirmed":
+            entry = f"MS 提及 / stated in MS: {ai_trades}"
+            if entry not in pre_ra_sheet["competency"]:
+                pre_ra_sheet["competency"].insert(0, entry)
+        ai_env = str(getattr(ai_ms_extraction, "working_height_environment", "") or "").strip()
+        if ai_env and ai_env != "To be confirmed":
+            entry = f"MS 提及 / stated in MS: {ai_env}"
+            if entry not in pre_ra_sheet["environment"]:
+                pre_ra_sheet["environment"].insert(0, entry)
+        ai_permits = str(getattr(ai_ms_extraction, "permits_certificates_mentioned", "") or "").strip()
+        if ai_permits and not any(p.get("permit_name") == ai_permits for p in pre_ra_sheet["permits"]):
+            pre_ra_sheet["permits"].insert(0, {
+                "permit_name": ai_permits,
+                "trigger": "Stated in uploaded Method Statement",
+                "key_controls": "Per Method Statement requirements",
+                "issued_by": "Per Method Statement / 施工方法書列明",
+            })
+        ai_ppe = str(getattr(ai_ms_extraction, "ppe_mentioned", "") or "").strip()
+        if ai_ppe:
+            entry = f"PPE 按 MS / PPE per MS: {ai_ppe}"
+            if entry not in pre_ra_sheet["competency"]:
+                pre_ra_sheet["competency"].append(entry)
         st.session_state["ra_input"] = {
             "has_ms": has_ms,
             "activity": activity_value,
@@ -2156,6 +2215,16 @@ if st.session_state.get("ra_stage") == "generated" and "ra_draft" in st.session_
         "training_records": _dump_rows(getattr(draft, "training_records", [])),
         "inspection_schedule": _dump_rows(getattr(draft, "inspection_schedule", [])),
     }
+    # If the AI omitted the supporting sections (its sections call timed out,
+    # or the local template is in use), fill them deterministically from the
+    # confirmed Pre-RA sheet so the report never skips permits / emergency /
+    # training / inspection (the old 6.0 -> 11.0 numbering gap).
+    default_sections = build_default_sections(data.get("pre_ra") or {}, data)
+    for key in ("permits_checklist", "training_records", "inspection_schedule"):
+        if not sections[key]:
+            sections[key] = default_sections[key]
+    if not sections["emergency_arrangements"]:
+        sections["emergency_arrangements"] = default_sections["emergency_arrangements"]
     if sections["permits_checklist"]:
         with st.expander("Permits & statutory documentation / 許可證及法定文件", expanded=False):
             st.dataframe(pd.DataFrame(sections["permits_checklist"]), hide_index=True, width="stretch")

@@ -46,15 +46,63 @@ def extract_docx_text(raw: bytes) -> str:
     return "\n".join(parts)[:MAX_EXTRACT_CHARS]
 
 
-def extract_pdf_text(raw: bytes) -> str:
+def _ascii_space_health(text: str) -> float:
+    """Spaces per ASCII letter — near-zero means the extractor dropped spaces.
+
+    Normal English runs at roughly one space per 5-6 letters (~0.17); broken
+    extractions like "Bypassbutton(bypassslackropelimit" sit near zero.
+    """
+    letters = sum(1 for ch in text if ch.isascii() and ch.isalpha())
+    if letters < 200:
+        return 1.0
+    return text.count(" ") / letters
+
+
+def _pypdf_pages(raw: bytes, layout: bool) -> str:
     reader = PdfReader(BytesIO(raw))
     parts: list[str] = []
     for page in reader.pages[:40]:
-        text = page.extract_text() or ""
+        if layout:
+            try:
+                text = page.extract_text(extraction_mode="layout") or ""
+            except Exception:
+                text = ""
+        else:
+            text = page.extract_text() or ""
         text = text.strip()
         if text:
             parts.append(text)
-    extracted = "\n".join(parts)[:MAX_EXTRACT_CHARS]
+    return "\n".join(parts)
+
+
+def _pdfplumber_pages(raw: bytes) -> str:
+    try:
+        import pdfplumber
+    except Exception:
+        return ""
+    parts: list[str] = []
+    try:
+        with pdfplumber.open(BytesIO(raw)) as pdf:
+            for page in pdf.pages[:40]:
+                text = (page.extract_text() or "").strip()
+                if text:
+                    parts.append(text)
+    except Exception:
+        return ""
+    return "\n".join(parts)
+
+
+def extract_pdf_text(raw: bytes) -> str:
+    # Some PDFs (certain CAD/Word exports) lose inter-word spaces under pypdf's
+    # default extractor. Escalate: pypdf -> pypdf layout mode -> pdfplumber ->
+    # heuristic word-splitting repair, keeping the healthiest result.
+    extracted = _pypdf_pages(raw, layout=False)
+    if _ascii_space_health(extracted) < 0.05:
+        candidates = [extracted, _pypdf_pages(raw, layout=True), _pdfplumber_pages(raw)]
+        extracted = max(candidates, key=lambda t: (_ascii_space_health(t), len(t)))
+        if _ascii_space_health(extracted) < 0.05:
+            extracted = repair_concatenated_english(extracted)
+    extracted = extracted[:MAX_EXTRACT_CHARS]
     if not extracted.strip():
         raise ValueError("No selectable text found in this PDF. It may be a scanned PDF; OCR support is not enabled yet.")
     return extracted
@@ -62,6 +110,138 @@ def extract_pdf_text(raw: bytes) -> str:
 
 def _compact_text(value: str) -> str:
     return "".join(str(value or "").split()).lower()
+
+
+# Vocabulary for repairing space-less PDF extractions. Ordered lookup is by
+# length (longest match first) so "structural" wins over "structure"+junk.
+# Construction / BMU / scaffolding / E&M terms plus the common glue words that
+# appear in method statements.
+_REPAIR_VOCAB = {
+    # BMU / gondola / T&C
+    "bypass", "slack", "rope", "ropes", "limit", "limits", "cage", "cradle",
+    "gondola", "hoist", "hoists", "trolley", "jib", "jibhead", "telescopic",
+    "slewing", "traversing", "traverser", "winch", "davit", "counterweight",
+    "suspended", "platform", "anchorage", "wire", "swl", "bmu",
+    # generic construction / inspection
+    "visual", "check", "checks", "checked", "checking", "inspect", "inspection",
+    "test", "tests", "testing", "load", "loads", "loading", "unload", "structural",
+    "structure", "structures", "members", "member", "connection", "connections",
+    "bolts", "bolt", "nuts", "nut", "nets", "net", "screws", "washer", "bracket",
+    "brackets", "rail", "rails", "track", "tracks", "wheel", "wheels", "wheelsets",
+    "scaffold", "scaffolding", "bamboo", "formwork", "rebar", "concrete",
+    # actions
+    "install", "installation", "erect", "erection", "remove", "removal",
+    "dismantle", "dismantling", "lift", "lifting", "lower", "lowering", "raise",
+    "operate", "operation", "operations", "connect", "connection", "energize",
+    "commission", "commissioning", "witness", "verify", "confirm", "ensure",
+    "carry", "conduct", "perform", "record", "sign", "issue", "apply", "land",
+    "landing", "stop", "start", "press", "push", "pull", "turn", "switch",
+    "activate", "deactivate", "restore", "reset",
+    # equipment / electrical
+    "power", "supply", "cable", "cables", "voltage", "phase", "phases",
+    "isolator", "breaker", "elcb", "rcd", "socket", "plug", "motor", "button",
+    "buttons", "emergency", "alarm", "brake", "brakes", "device", "devices",
+    "controller", "control", "controls", "panel", "key", "selector",
+    # safety / documents
+    "safety", "harness", "lanyard", "helmet", "permit", "permits", "form",
+    "certificate", "certificates", "competent", "person", "examiner", "operator",
+    "engineer", "supervisor", "worker", "workers", "public", "barrier",
+    "barriers", "warning", "signage", "exclusion", "zone", "rescue", "weather",
+    # glue words
+    "the", "a", "an", "and", "or", "of", "to", "in", "on", "at", "by", "for",
+    "with", "from", "all", "any", "each", "before", "after", "during", "under",
+    "over", "up", "down", "left", "right", "can", "shall", "must", "will", "be",
+    "is", "are", "not", "no", "so", "as", "if", "then", "when", "upper", "lower",
+    "ground", "roof", "site", "area", "work", "works", "working", "step", "steps",
+    "procedure", "procedures", "method", "statement", "material", "materials",
+    "obstruction", "bar", "buffer", "end", "travel", "speed", "direction",
+    "function", "functions", "static", "dynamic", "weight", "weights", "kg",
+    "mm", "m", "min", "max", "high", "level", "levels",
+}
+_MAX_VOCAB_LEN = max(len(word) for word in _REPAIR_VOCAB)
+# Two-letter words allowed in dictionary segmentation. Longer minimum match
+# elsewhere avoids spurious splits, but these appear constantly in MS text
+# ("so cage can land ON ground", "UP/DOWN").
+_SHORT_GLUE_WORDS = {"of", "to", "in", "on", "at", "by", "up", "so", "no", "if", "as", "be", "is", "or", "an"}
+
+
+def _split_lowercase_run(run: str) -> str:
+    """Best-effort dictionary segmentation of a space-less lowercase run.
+
+    Dynamic programme minimising unmatched characters, preferring longer
+    dictionary words. Unmatched remainders are kept verbatim so technical
+    tokens (e.g. product codes) survive unchanged.
+    """
+    n = len(run)
+    lowered = run.lower()
+    # cost[i] = (unmatched_chars, word_count) for best split of run[:i]
+    cost: list[tuple[int, int]] = [(0, 0)] + [(n + 1, 0)] * n
+    choice: list[tuple[int, bool] | None] = [None] * (n + 1)
+    for i in range(1, n + 1):
+        # Treat run[j:i] as one unmatched char appended to run[:i-1].
+        best = (cost[i - 1][0] + 1, cost[i - 1][1] + 1)
+        best_choice: tuple[int, bool] = (i - 1, False)
+        for length in range(min(_MAX_VOCAB_LEN, i), 1, -1):
+            j = i - length
+            word = lowered[j:i]
+            if word in _REPAIR_VOCAB and (length >= 3 or word in _SHORT_GLUE_WORDS):
+                cand = (cost[j][0], cost[j][1] + 1)
+                if cand < best:
+                    best = cand
+                    best_choice = (j, True)
+        cost[i] = best
+        choice[i] = best_choice
+    # Short runs may be single legitimate words ("witnessed") — only split
+    # them on a perfect segmentation into 2+ dictionary words. Long runs are
+    # clearly concatenated, so a partial split beats leaving them glued.
+    unmatched, words = cost[n]
+    if n < 16:
+        if unmatched > 0 or words < 2:
+            return run
+    elif unmatched > n // 3:
+        return run
+    parts: list[str] = []
+    i = n
+    pending = ""
+    while i > 0:
+        j, matched = choice[i]  # type: ignore[misc]
+        if matched:
+            if pending:
+                parts.append(pending)
+                pending = ""
+            parts.append(run[j:i])
+        else:
+            pending = run[j:i] + pending
+        i = j
+    if pending:
+        parts.append(pending)
+    parts.reverse()
+    return " ".join(parts)
+
+
+def repair_concatenated_english(text: str) -> str:
+    """Repair PDF text whose inter-word spaces were lost during extraction."""
+    # Space after sentence punctuation stuck to the next word.
+    text = re.sub(r"([,.;:!?])([A-Za-z])", r"\1 \2", text)
+    # Space around brackets glued to words.
+    text = re.sub(r"([A-Za-z0-9])\(", r"\1 (", text)
+    text = re.sub(r"\)([A-Za-z])", r") \1", text)
+    # camelCase boundary from merged words, e.g. "Visualcheck" stays but
+    # "checkAll" splits; also digit-to-letter like "150%SWL" -> "150% SWL".
+    text = re.sub(r"([a-z])([A-Z][a-z])", r"\1 \2", text)
+    # Lowercase glued to an acronym, e.g. "ofBMU" -> "of BMU".
+    text = re.sub(r"([a-z])([A-Z]{2,})", r"\1 \2", text)
+    text = re.sub(r"(%|\d)([A-Za-z]{3,})", r"\1 \2", text)
+    # Word glued to a number, e.g. "Connect380V" (lowercase-before-digit only,
+    # so codes like "M12" survive). Also ",3phases" -> ", 3phases".
+    text = re.sub(r"([a-z])(\d)", r"\1 \2", text)
+    text = re.sub(r"([,;])(\d)", r"\1 \2", text)
+    # Dictionary-split long letter runs such as "bypassslackropelimit" or
+    # "Bypassbutton" (case-insensitive segmentation, original case preserved).
+    def _fix(match: re.Match[str]) -> str:
+        return _split_lowercase_run(match.group(0))
+
+    return re.sub(r"[A-Za-z][a-z]{6,}", _fix, text)
 
 
 # Chinese and English action verbs that mark a real physical work step.
@@ -121,6 +301,17 @@ def clean_extracted_steps(raw_steps: list[str], titles: list[str] | None = None,
     steps: list[str] = []
     for raw in raw_steps:
         clean = str(raw or "").strip(" \t-*0123456789.)、")
+        # Repair steps carried over from a space-less PDF extraction, e.g.
+        # "Bypassbutton(bypassslackropelimit,..."; drop them if unrepairable —
+        # broken strings must never reach a formal RA.
+        if re.search(r"[A-Za-z]{15,}", clean):
+            clean = repair_concatenated_english(clean)
+            if re.search(r"[A-Za-z]{18,}", clean):
+                continue
+            # A repaired heading ("Method of Site Testing of BMU") reads like
+            # a step but is still a document/section title, not a work step.
+            if _compact_text(clean).startswith(("methodof", "procedureof", "t&cprocedure", "tableof", "appendix")):
+                continue
         compact = _compact_text(clean)
         if not clean or len(compact) < 6:
             continue

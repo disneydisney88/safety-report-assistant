@@ -1,26 +1,39 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, get_origin
 from pydantic import BaseModel, Field, model_validator
 
 
 class NoneTolerantModel(BaseModel):
     """AI backends return null for unknown fields; treat null as 'use default'
-    instead of failing validation and discarding the whole response."""
+    instead of failing validation and discarding the whole response. Also
+    coerces shape mismatches (a list where a string is expected and vice
+    versa) — e.g. Gemini returns plant_equipment as a list, which previously
+    failed validation and threw away the entire extraction."""
 
     @model_validator(mode="before")
     @classmethod
     def _drop_nulls(cls, data):
-        if isinstance(data, dict):
-            cleaned = {}
-            for key, value in data.items():
-                if value is None:
-                    continue
-                if isinstance(value, list):
-                    value = [item for item in value if item is not None]
-                cleaned[key] = value
-            return cleaned
-        return data
+        if not isinstance(data, dict):
+            return data
+        cleaned = {}
+        for key, value in data.items():
+            if value is None:
+                continue
+            if isinstance(value, list):
+                value = [item for item in value if item is not None]
+            field = cls.model_fields.get(key)
+            if field is not None:
+                annotation = field.annotation
+                if annotation is str:
+                    if isinstance(value, list):
+                        value = "; ".join(str(item).strip() for item in value if str(item).strip())
+                    elif not isinstance(value, str):
+                        value = str(value)
+                elif get_origin(annotation) is list and isinstance(value, str):
+                    value = [value] if value.strip() else []
+            cleaned[key] = value
+        return cleaned
 
 
 class RAItem(NoneTolerantModel):
@@ -102,6 +115,8 @@ class MethodStatementExtraction(NoneTolerantModel):
     working_height_environment: str = ""
     duration_time_of_work: str = ""
     existing_safety_provisions: list[str] = Field(default_factory=list)
+    permits_certificates_mentioned: str = ""
+    ppe_mentioned: str = ""
     extraction_notes: str = ""
 
 
