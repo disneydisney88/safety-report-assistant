@@ -2326,33 +2326,36 @@ if st.session_state.get("ra_stage") == "generated" and "ra_draft" in st.session_
         pdf_error = str(exc)
     # Branded download buttons: Word blue, Excel green, PDF red (each app's
     # own colour), white bold text so they read as the primary actions.
+    # Base rule MUST carry a solid visible background: relying only on
+    # :nth-of-type column selectors for the background left the white button
+    # text on a default light background (invisible "missing" buttons) when
+    # the selector did not match the real Streamlit DOM. Give every download
+    # button a visible blue base; per-column colours are a best-effort accent.
     st.markdown(
         """
         <style>
         div[data-testid="stDownloadButton"] button {
             color: #ffffff !important;
+            background: #2B579A !important;
             font-weight: 700;
-            border: none;
+            border: none !important;
             border-radius: 8px;
             padding: 0.6rem 1rem;
             width: 100%;
         }
-        div[data-testid="column"]:nth-of-type(1) div[data-testid="stDownloadButton"] button {
-            background: linear-gradient(135deg, #2B579A, #1F4D78);
-        }
+        div[data-testid="stDownloadButton"] button p { color: #ffffff !important; }
         div[data-testid="column"]:nth-of-type(2) div[data-testid="stDownloadButton"] button {
-            background: linear-gradient(135deg, #217346, #1A5C38);
+            background: #217346 !important;
         }
         div[data-testid="column"]:nth-of-type(3) div[data-testid="stDownloadButton"] button {
-            background: linear-gradient(135deg, #C0392B, #96271B);
+            background: #C0392B !important;
         }
-        div[data-testid="stDownloadButton"] button:hover {
-            filter: brightness(1.15);
-        }
+        div[data-testid="stDownloadButton"] button:hover { filter: brightness(1.15); }
         </style>
         """,
         unsafe_allow_html=True,
     )
+    st.markdown("#### Download report / 下載報告")
     col1, col2, col3 = st.columns(3)
     col1.download_button(UI["word"], docx, file_name="risk_assessment_report.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
     col2.download_button(UI["excel"], xlsx, file_name="risk_assessment_report.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
