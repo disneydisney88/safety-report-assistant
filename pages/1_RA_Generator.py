@@ -2316,21 +2316,33 @@ if st.session_state.get("ra_stage") == "generated" and "ra_draft" in st.session_
         with st.expander("Monitoring & inspection schedule / 監察及巡查時間表", expanded=False):
             st.dataframe(pd.DataFrame(sections["inspection_schedule"]), hide_index=True, width="stretch")
 
-    docx = docx_export.build_ra_docx(report, rows, data.get("risk_matrix", {}), sections)
-    xlsx = build_ra_excel(report, rows, data.get("risk_matrix", {}))
-    try:
-        pdf = build_ra_pdf(report, rows, data.get("risk_matrix", {}), sections)
-        pdf_error = None
-    except Exception as exc:  # PDF is a convenience export; never block Word/Excel
-        pdf = None
-        pdf_error = str(exc)
-    # Branded download buttons: Word blue, Excel green, PDF red (each app's
-    # own colour), white bold text so they read as the primary actions.
+    # Build each export INDEPENDENTLY. Previously an exception in build_ra_docx
+    # or build_ra_excel aborted the whole block, so ALL download buttons
+    # disappeared ("no button"). Guard each one so a failure in one format
+    # never removes the others, and surface the reason instead of a blank page.
+    _risk_matrix = data.get("risk_matrix", {})
+    exports: list[dict[str, Any]] = [
+        {"key": "word", "label": UI["word"], "file": "risk_assessment_report.docx",
+         "mime": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+         "build": lambda: docx_export.build_ra_docx(report, rows, _risk_matrix, sections)},
+        {"key": "excel", "label": UI["excel"], "file": "risk_assessment_report.xlsx",
+         "mime": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+         "build": lambda: build_ra_excel(report, rows, _risk_matrix)},
+        {"key": "pdf", "label": UI.get("pdf", "Download PDF RA Report / 下載 PDF 報告"),
+         "file": "risk_assessment_report.pdf", "mime": "application/pdf",
+         "build": lambda: build_ra_pdf(report, rows, _risk_matrix, sections)},
+    ]
+    for item in exports:
+        try:
+            item["data"] = item["build"]().getvalue()
+            item["error"] = None
+        except Exception as exc:  # noqa: BLE001 - report, never crash the page
+            item["data"] = None
+            item["error"] = f"{type(exc).__name__}: {exc}"
+
     # Base rule MUST carry a solid visible background: relying only on
-    # :nth-of-type column selectors for the background left the white button
-    # text on a default light background (invisible "missing" buttons) when
-    # the selector did not match the real Streamlit DOM. Give every download
-    # button a visible blue base; per-column colours are a best-effort accent.
+    # :nth-of-type column selectors left white button text on a light default
+    # background (invisible buttons). Give every button a visible blue base.
     st.markdown(
         """
         <style>
@@ -2344,22 +2356,17 @@ if st.session_state.get("ra_stage") == "generated" and "ra_draft" in st.session_
             width: 100%;
         }
         div[data-testid="stDownloadButton"] button p { color: #ffffff !important; }
-        div[data-testid="column"]:nth-of-type(2) div[data-testid="stDownloadButton"] button {
-            background: #217346 !important;
-        }
-        div[data-testid="column"]:nth-of-type(3) div[data-testid="stDownloadButton"] button {
-            background: #C0392B !important;
-        }
+        div[data-testid="column"]:nth-of-type(2) div[data-testid="stDownloadButton"] button { background: #217346 !important; }
+        div[data-testid="column"]:nth-of-type(3) div[data-testid="stDownloadButton"] button { background: #C0392B !important; }
         div[data-testid="stDownloadButton"] button:hover { filter: brightness(1.15); }
         </style>
         """,
         unsafe_allow_html=True,
     )
     st.markdown("#### Download report / 下載報告")
-    col1, col2, col3 = st.columns(3)
-    col1.download_button(UI["word"], docx, file_name="risk_assessment_report.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-    col2.download_button(UI["excel"], xlsx, file_name="risk_assessment_report.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    if pdf is not None:
-        col3.download_button(UI.get("pdf", "Download PDF RA Report / 下載 PDF 風險評估報告"), pdf, file_name="risk_assessment_report.pdf", mime="application/pdf")
-    else:
-        col3.warning(f"PDF export unavailable / PDF 匯出暫時無法使用: {pdf_error}")
+    cols = st.columns(3)
+    for col, item in zip(cols, exports):
+        if item["data"] is not None:
+            col.download_button(item["label"], item["data"], file_name=item["file"], mime=item["mime"], key=f"dl_{item['key']}")
+        else:
+            col.warning(f"{item['key'].upper()} 匯出失敗 / export failed: {item['error']}")
