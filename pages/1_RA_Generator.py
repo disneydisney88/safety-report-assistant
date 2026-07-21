@@ -18,6 +18,7 @@ from services.ai_prompts import (
     RA_TRANSLATION_SYSTEM_PROMPT,
 )
 from services.excel_export import build_ra_excel
+from services.pdf_export import build_ra_pdf
 from services.file_extract import clean_extracted_steps, extract_text_from_upload, infer_steps_from_ms_text
 from services.language_tools import (
     CHINESE_LANGUAGES,
@@ -128,8 +129,9 @@ UI = {
     "confined_warning": "Confined space auto-check: gas testing, ventilation, respiratory protection, permit-to-work, standby person, rescue arrangement and monitoring records must be included.",
     "generate": "Confirm and Generate RA Report / \u78ba\u8a8d\u4e26\u751f\u6210\u5831\u544a",
     "step3": "Step 3. RA Report Output / 第三步：報告輸出",
-    "word": "Download Word RA Report",
-    "excel": "Download Excel RA Table",
+    "word": "Download Word RA Report / 下載 Word 報告",
+    "excel": "Download Excel RA Table / 下載 Excel 表",
+    "pdf": "Download PDF RA Report / 下載 PDF 報告",
 }
 
 
@@ -2316,7 +2318,13 @@ if st.session_state.get("ra_stage") == "generated" and "ra_draft" in st.session_
 
     docx = docx_export.build_ra_docx(report, rows, data.get("risk_matrix", {}), sections)
     xlsx = build_ra_excel(report, rows, data.get("risk_matrix", {}))
-    # Branded download buttons: Word blue, Excel green (matching each app's
+    try:
+        pdf = build_ra_pdf(report, rows, data.get("risk_matrix", {}), sections)
+        pdf_error = None
+    except Exception as exc:  # PDF is a convenience export; never block Word/Excel
+        pdf = None
+        pdf_error = str(exc)
+    # Branded download buttons: Word blue, Excel green, PDF red (each app's
     # own colour), white bold text so they read as the primary actions.
     st.markdown(
         """
@@ -2335,6 +2343,9 @@ if st.session_state.get("ra_stage") == "generated" and "ra_draft" in st.session_
         div[data-testid="column"]:nth-of-type(2) div[data-testid="stDownloadButton"] button {
             background: linear-gradient(135deg, #217346, #1A5C38);
         }
+        div[data-testid="column"]:nth-of-type(3) div[data-testid="stDownloadButton"] button {
+            background: linear-gradient(135deg, #C0392B, #96271B);
+        }
         div[data-testid="stDownloadButton"] button:hover {
             filter: brightness(1.15);
         }
@@ -2342,6 +2353,10 @@ if st.session_state.get("ra_stage") == "generated" and "ra_draft" in st.session_
         """,
         unsafe_allow_html=True,
     )
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     col1.download_button(UI["word"], docx, file_name="risk_assessment_report.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
     col2.download_button(UI["excel"], xlsx, file_name="risk_assessment_report.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    if pdf is not None:
+        col3.download_button(UI.get("pdf", "Download PDF RA Report / 下載 PDF 風險評估報告"), pdf, file_name="risk_assessment_report.pdf", mime="application/pdf")
+    else:
+        col3.warning(f"PDF export unavailable / PDF 匯出暫時無法使用: {pdf_error}")
