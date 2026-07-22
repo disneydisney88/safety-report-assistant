@@ -22,6 +22,7 @@ from services.pdf_export import build_ra_pdf
 from services.activity_ra import (
     are_activity_grouped_rows,
     build_activity_grouped_items,
+    count_generic_rows,
     remove_generic_and_duplicate_rows,
 )
 from services.file_extract import clean_extracted_steps, extract_text_from_upload, infer_steps_from_ms_text
@@ -1146,10 +1147,7 @@ def quality_check_ra(data: dict, rows: list[dict[str, str]]) -> dict[str, object
             comments.append("Missing scaffold dismantling critical hazards: " + ", ".join(missing))
     # Quality gate: generic backfill rows are prohibited, and an inflated table
     # signals sentence-by-sentence generation instead of phase-based RA.
-    generic_count = sum(
-        1 for row in rows
-        if any(marker in " ".join(str(row.get(key, "")) for key in ("Work Step", "Hazard")) for marker in _GENERIC_ROW_MARKERS)
-    )
+    generic_count = count_generic_rows(rows)
     if generic_count:
         comments.append(
             f"{generic_count} generic fallback row(s) detected — regenerate with trade-specific hazard grouping. "

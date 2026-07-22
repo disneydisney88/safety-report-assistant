@@ -65,7 +65,7 @@ def test_step_type_classifier_filters_non_activities():
 
 
 def test_duplicate_killer_removes_generic_and_collapses_repeats():
-    from services.activity_ra import remove_generic_and_duplicate_rows
+    from services.activity_ra import count_generic_rows, remove_generic_and_duplicate_rows
 
     generic = {
         "Work Step": "Confirmed work step requiring risk assessment",
@@ -76,7 +76,9 @@ def test_duplicate_killer_removes_generic_and_collapses_repeats():
     specific = {"Work Step": "混凝土澆築", "Hazard": "爆模", "Cause of Hazard": "側壓過大", "Existing Controls": "控制澆灌速度"}
     repeat = {"Work Step": "步驟A", "Hazard": "同一危害", "Cause of Hazard": "同一成因", "Existing Controls": "同一措施"}
     rows = [generic] * 5 + [zh_generic] * 3 + [specific] + [dict(repeat, **{"Work Step": f"步驟{i}"}) for i in range(4)]
+    assert count_generic_rows(rows) == 8
     cleaned = remove_generic_and_duplicate_rows(rows)
+    assert count_generic_rows(cleaned) == 0
     texts = [r["Hazard"] for r in cleaned]
     assert all("Confirmed work step" not in r["Work Step"] for r in cleaned)
     assert all("與工序相關的高處墮下" not in h for h in texts)

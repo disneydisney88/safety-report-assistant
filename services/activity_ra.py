@@ -565,6 +565,21 @@ def _compact(value: Any) -> str:
     return "".join(str(value or "").split()).lower()
 
 
+def count_generic_rows(rows: list[dict[str, str]]) -> int:
+    """Return the number of retired generic fallback rows in an RA table."""
+    return sum(
+        1
+        for row in rows
+        if any(
+            marker in " ".join(
+                str(row.get(key, ""))
+                for key in ("Work Step", "Hazard", "Existing Controls")
+            )
+            for marker in GENERIC_ROW_MARKERS
+        )
+    )
+
+
 def remove_generic_and_duplicate_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
     """Duplicate killer run before export: drop retired generic rows and
     collapse near-identical repeats (same hazard + cause + existing controls
