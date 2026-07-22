@@ -60,8 +60,37 @@ def test_step_type_classifier_filters_non_activities():
     assert classify_step_type("〔控制點／Hold Point〕") == "heading"
     assert classify_step_type("相片記錄存檔") == "record_only"
     assert classify_step_type("取得書面批准後方可進行下一工序") == "permit_or_approval"
+    assert classify_step_type("全面檢查模板、鋼筋及開口，取得T4批准後方可澆灌混凝土") == "work_activity"
     assert classify_step_type("底板混凝土澆築") == "work_activity"
     assert classify_step_type("底板鋼筋檢查") == "work_activity"  # T4 / hold-point bucket
+
+
+def test_manhole_steps_keep_safety_critical_secondary_activities():
+    from services.activity_ra import build_activity_grouped_items
+
+    def rating(m, l, s):
+        score = l * s
+        level = "HR" if score >= 10 else ("MR" if score >= 5 else "LR")
+        return f"P{l} x S{s} = {score} {level}"
+
+    steps = [
+        "清理及整理施工範圍，確保照明、通風及安全通道。",
+        "檢查所有電動工具、起重設備、吊具、工作平台及梯具。",
+        "由測量人員按批准圖紙放出井的位置及標高。",
+        "按批准圖紙吊運及安放鋼筋，然後綁紮及固定底板鋼筋。",
+        "安裝井壁內外模板、拉桿及臨時支撐。",
+        "全面檢查模板、鋼筋、開口及標高，取得T4批准後方可澆灌混凝土。",
+        "將混凝土運送至指定位置並利用混凝土泵進行澆灌。",
+        "使用膠膜保濕養護並安排混凝土試件測試。",
+        "按次序拆模板及臨時支撐。",
+    ]
+    items = build_activity_grouped_items(
+        {"confirmed_steps": steps, "report_language": "English"},
+        {}, rating, _srecs, "English",
+    )
+    hazard_ids = {item["hazard_id"] for item in items}
+    assert {"t4_holdpoint", "lifting", "electrical", "transport_waste", "openings"} <= hazard_ids
+    assert 12 <= len(items) <= 16
 
 
 def test_duplicate_killer_removes_generic_and_collapses_repeats():

@@ -367,6 +367,7 @@ def _norm(text: str) -> str:
 _PRIORITY_SIGNALS: list[tuple[tuple[str, ...], str]] = [
     (("拆模", "拆除模板", "拆支撐", "拆除臨時", "拆除支撐", "拆除假支架", "拆除回頂", "strip formwork", "remove prop", "striking of", "dismantl"), "striking"),
     (("進入井", "密閉空間", "缺氧", "confined space", "entry into the shaft"), "confined_space"),
+    (("t4", "正式檢查", "最終檢查", "re檢查", "re 檢查", "inspection sign-off"), "t4_holdpoint"),
 ]
 
 _BUCKET_BY_KEY = {b["key"]: b for b in ACTIVITY_BUCKETS}
@@ -382,6 +383,18 @@ _HEADING_MARKERS = ("〔", "【", "︰以下", "as follows")
 _HEADING_SUFFIXES = ("準備", "工序", "階段", "安排", "如下", "注意事項")
 _RECORD_MARKERS = ("記錄存檔", "拍照記錄", "存檔", "紀錄表", "record only", "for record")
 _APPROVAL_ONLY_MARKERS = ("取得批准", "取得書面批准", "批准後方可", "同意後方可", "approval obtained", "subject to approval")
+_T4_INSPECTION_MARKERS = ("t4", "正式檢查", "最終檢查", "re檢查", "re 檢查", "inspection sign-off")
+
+# A Method Statement sentence can contain a main trade activity plus a distinct
+# safety-critical interface (for example lifting rebar, using power tools, or
+# protecting an opening after formwork removal). Keep the main classifier
+# deterministic, but also retain these interfaces as their own grouped rows.
+_SECONDARY_ACTIVITY_SIGNALS: dict[str, tuple[str, ...]] = {
+    "openings": ("孔洞", "開口", "井口", "臨邊", "樓面開口", "floor opening", "manhole opening", "shaft opening", "edge protection"),
+    "lifting": ("吊運", "吊機", "吊索", "吊具", "起重", "吊裝", "lifting", "hoist", "crane", "sling"),
+    "transport_waste": ("搬運", "運走", "清走", "廢料", "叉車", "唧車", "運送", "運輸", "分類", "transport", "forklift", "pallet", "waste", "debris"),
+    "electrical": ("電源", "電動工具", "電纜", "電力", "供電", "配電", "electric", "power supply", "cable", "distribution board"),
+}
 
 _ACTION_HINTS = (
     "拆", "裝", "搭", "吊", "運", "清", "鋪", "綁", "紮", "澆", "築", "挖", "焊", "切",
@@ -402,6 +415,8 @@ def classify_step_type(step_text: str) -> str:
         return "heading"
     if any(marker in text for marker in _RECORD_MARKERS):
         return "record_only"
+    if any(marker in text for marker in _T4_INSPECTION_MARKERS):
+        return "work_activity"
     if any(marker in text for marker in _APPROVAL_ONLY_MARKERS):
         return "permit_or_approval"
     # Short lines ending like a section title ("模板施工前準備") are headings
@@ -428,6 +443,21 @@ def classify_step(step_text: str) -> dict[str, Any] | None:
         if score and (best is None or score > best[0]):
             best = (score, bucket)
     return best[1] if best else None
+
+
+def classify_step_buckets(step_text: str) -> list[dict[str, Any]]:
+    """Return the primary activity plus distinct safety-critical interfaces."""
+    text = _norm(step_text)
+    buckets: list[dict[str, Any]] = []
+    primary = classify_step(step_text)
+    if primary is not None:
+        buckets.append(primary)
+    seen = {str(bucket["key"]) for bucket in buckets}
+    for key, signals in _SECONDARY_ACTIVITY_SIGNALS.items():
+        if key not in seen and any(signal in text for signal in signals):
+            buckets.append(_BUCKET_BY_KEY[key])
+            seen.add(key)
+    return buckets
 
 
 def _residual(rating_fn: Callable[[dict, int, int], str], matrix: dict, severity: int, keep: bool) -> str:
@@ -463,16 +493,17 @@ def build_activity_grouped_items(
     for record in records:
         if classify_step_type(record["step_text"]) != "work_activity":
             continue
-        bucket = classify_step(record["step_text"])
-        if bucket is None:
+        buckets = classify_step_buckets(record["step_text"])
+        if not buckets:
             if not include_general:
                 continue
-            bucket = GENERAL_BUCKET
-        key = bucket["key"]
-        if key not in grouped:
-            grouped[key] = {"bucket": bucket, "records": []}
-            order.append(key)
-        grouped[key]["records"].append(record)
+            buckets = [GENERAL_BUCKET]
+        for bucket in buckets:
+            key = bucket["key"]
+            if key not in grouped:
+                grouped[key] = {"bucket": bucket, "records": []}
+                order.append(key)
+            grouped[key]["records"].append(record)
 
     legal = _LEGAL_ZH if chinese else _LEGAL_EN
     persons = "工人、監督、分判商及附近人員" if chinese else "Workers, supervisors, subcontractors and persons nearby"
