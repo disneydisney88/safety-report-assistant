@@ -19,7 +19,7 @@ from services.ai_prompts import (
 )
 from services.excel_export import build_ra_excel
 from services.pdf_export import build_ra_pdf
-from services.activity_ra import build_activity_grouped_items
+from services.activity_ra import are_activity_grouped_rows, build_activity_grouped_items
 from services.file_extract import clean_extracted_steps, extract_text_from_upload, infer_steps_from_ms_text
 from services.language_tools import (
     CHINESE_LANGUAGES,
@@ -1166,20 +1166,25 @@ def ensure_required_ra_rows(data: dict, rows: list[dict[str, str]]) -> list[dict
     has_public = any("control interface with public" in str(row.get("Work Step", "")).lower() or "公眾" in str(row.get("Work Step", "")) or "行人" in str(row.get("Work Step", "")) for row in rows)
     matrix = data.get("risk_matrix", {})
 
-    exploded_rows: list[dict[str, str]] = []
-    for row in rows:
-        hazards = split_points_for_rows(row.get("Hazard", ""))
-        consequences = split_points_for_rows(row.get("Possible Consequence", ""))
-        if len(hazards) > 1 and not any(token in str(row.get("Work Step", "")) for token in ["惡劣天氣", "公眾", "weather", "public"]):
-            for idx, hazard in enumerate(hazards):
-                new_row = dict(row)
-                new_row["Hazard"] = hazard
-                if len(consequences) == len(hazards):
-                    new_row["Possible Consequence"] = consequences[idx]
-                exploded_rows.append(new_row)
-        else:
-            exploded_rows.append(row)
-    rows = exploded_rows
+    # Activity-grouped local rows deliberately contain several related hazard
+    # phrases in one activity row. Do not explode those phrases back into one
+    # row per hazard: that recreated the 40+ row output this fallback replaces.
+    activity_grouped_local = data.get("ra_source") == "local" and are_activity_grouped_rows(rows)
+    if not activity_grouped_local:
+        exploded_rows: list[dict[str, str]] = []
+        for row in rows:
+            hazards = split_points_for_rows(row.get("Hazard", ""))
+            consequences = split_points_for_rows(row.get("Possible Consequence", ""))
+            if len(hazards) > 1 and not any(token in str(row.get("Work Step", "")) for token in ["惡劣天氣", "公眾", "weather", "public"]):
+                for idx, hazard in enumerate(hazards):
+                    new_row = dict(row)
+                    new_row["Hazard"] = hazard
+                    if len(consequences) == len(hazards):
+                        new_row["Possible Consequence"] = consequences[idx]
+                    exploded_rows.append(new_row)
+            else:
+                exploded_rows.append(row)
+        rows = exploded_rows
 
     def generic_step_row(step: str) -> dict[str, str]:
         if chinese:
@@ -1219,22 +1224,23 @@ def ensure_required_ra_rows(data: dict, rows: list[dict[str, str]]) -> list[dict
 
     step_meta = step_records(data.get("confirmed_steps", []))
     covered_ids = {str(row.get("Source Step ID", "")).strip() for row in rows if row.get("Source Step ID")}
-    for meta in step_meta:
-        step_id = meta["source_step_id"]
-        step = meta["step_text"].strip()
-        if not step:
-            continue
-        text_covered = any(
-            similar_text(step, str(row.get("Source Step Original") or row.get("Source Step Translated") or row.get("Work Step", ""))) >= 0.72
-            for row in rows
-        )
-        if step_id not in covered_ids and not text_covered:
-            fallback = generic_step_row(step)
-            fallback["Source Step ID"] = step_id
-            fallback["Source Step Original"] = step
-            fallback["Source Step Translated"] = step
-            rows.append(fallback)
-            covered_ids.add(step_id)
+    if not activity_grouped_local:
+        for meta in step_meta:
+            step_id = meta["source_step_id"]
+            step = meta["step_text"].strip()
+            if not step:
+                continue
+            text_covered = any(
+                similar_text(step, str(row.get("Source Step Original") or row.get("Source Step Translated") or row.get("Work Step", ""))) >= 0.72
+                for row in rows
+            )
+            if step_id not in covered_ids and not text_covered:
+                fallback = generic_step_row(step)
+                fallback["Source Step ID"] = step_id
+                fallback["Source Step Original"] = step
+                fallback["Source Step Translated"] = step
+                rows.append(fallback)
+                covered_ids.add(step_id)
 
     if is_scaffold_dismantling_work(data):
         existing_hazard_ids = {str(row.get("Hazard ID", "")).strip().upper() for row in rows}

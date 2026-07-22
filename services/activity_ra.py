@@ -325,6 +325,20 @@ _WEATHER_BUCKET = {
 }
 
 
+ACTIVITY_BUCKET_KEYS = frozenset(
+    [str(bucket["key"]) for bucket in ACTIVITY_BUCKETS]
+    + [str(GENERAL_BUCKET["key"]), str(_WEATHER_BUCKET["key"])]
+)
+
+
+def are_activity_grouped_rows(rows: list[dict[str, Any]]) -> bool:
+    """Return True when every row belongs to the local activity-grouped fallback."""
+    if not rows:
+        return False
+    hazard_ids = [str(row.get("Hazard ID") or row.get("hazard_id") or "") for row in rows]
+    return all(hazard_id in ACTIVITY_BUCKET_KEYS for hazard_id in hazard_ids)
+
+
 def _norm(text: str) -> str:
     return str(text or "").lower()
 

@@ -9,7 +9,7 @@ def _srecs(steps):
 
 
 def test_activity_grouping_collapses_repetitive_steps():
-    from services.activity_ra import build_activity_grouped_items
+    from services.activity_ra import are_activity_grouped_rows, build_activity_grouped_items
 
     steps = [
         "清理施工範圍", "設置圍欄警告標誌", "測量放線核對圖則", "模板拉桿安裝",
@@ -21,6 +21,7 @@ def test_activity_grouping_collapses_repetitive_steps():
         {"confirmed_steps": steps, "report_language": "Traditional Chinese"},
         {}, _rating, _srecs, "Traditional Chinese",
     )
+    assert are_activity_grouped_rows(items)
     # 14 sentence-steps must collapse to far fewer activity rows, not 14+.
     assert len(items) <= 14
     # Rows must be distinct (no single generic hazard dominating).
@@ -30,6 +31,18 @@ def test_activity_grouping_collapses_repetitive_steps():
     ratings = {it["hazard_id"]: it["residual_risk_rating"] for it in items}
     assert "S5" in ratings["formwork"]
     assert "LR" in ratings["access_enclosure"]
+
+
+def test_activity_grouped_rows_are_identified_for_post_processing():
+    from services.activity_ra import are_activity_grouped_rows
+
+    assert are_activity_grouped_rows([
+        {"Hazard ID": "formwork"},
+        {"Hazard ID": "scaffold_platform"},
+        {"Hazard ID": "weather_emergency"},
+    ])
+    assert not are_activity_grouped_rows([{"Hazard ID": "generic-hazard"}])
+    assert not are_activity_grouped_rows([])
 
 
 def test_striking_and_curing_classification():
