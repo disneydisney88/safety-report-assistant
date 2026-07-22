@@ -352,7 +352,10 @@ def build_default_sections(sheet: dict[str, Any], data: dict[str, Any]) -> dict[
     lifting = flags.get("lifting") == "Yes" or any(t in corpus for t in ["吊運", "lifting", "crane", "吊機", "hoist", "吊眼", "吊架", "葫蘆"])
     at_height = bmu or scaffold or flags.get("work_at_height") == "Yes" or any(t in corpus for t in ["高處", "height", "外牆", "天台", "roof", "工作台", "防墮"])
     electrical = flags.get("electrical") == "Yes" or any(t in corpus for t in ["380v", "電源", "electri", "power supply", "濕鑽", "濕式鑽"])
-    confined = flags.get("confined_space") == "Yes"
+    bamboo = any(t in corpus for t in ["竹棚", "竹枝", "竹料", "bamboo"])
+    # Confined space training only when work actually enters a confined space,
+    # not merely because a manhole / shaft is mentioned.
+    confined = flags.get("confined_space") == "Yes" or any(t in corpus for t in ["密閉空間", "進入井內", "缺氧", "confined space"])
     # Hot work means flame / arc, NOT wet concrete drilling or sawing.
     hot_work = flags.get("hot_work") == "Yes" or any(t in corpus for t in ["燒焊", "焊接", "電焊", "風煤", "flame cut", "weld", "gas cutting"])
     cutting = any(t in corpus for t in ["切割", "鑽孔", "鑽切", "拆卸", "打拆", "demolition", "coring", "concrete cutting"])
@@ -513,10 +516,14 @@ def build_default_sections(sheet: dict[str, Any], data: dict[str, Any]) -> dict[
         _training("SWP / BMU operator", "吊船操作員",
                   "SWP operation training certificate", "吊船操作訓練證書",
                   "Cap. 59AC / SWP CoP", "Cap. 59AC / 吊船工作守則")
-    if scaffold:
-        _training("Scaffolder", "搭棚工人",
+    if scaffold and bamboo:
+        _training("Bamboo scaffolder", "竹棚架搭棚工人",
                   "Bamboo scaffolder training certificate", "竹棚架工藝訓練證書",
                   "Cap. 59I; CoP for Bamboo Scaffolding Safety", "Cap. 59I；竹棚架安全工作守則")
+    elif scaffold:
+        _training("Scaffold / working platform erector", "棚架 / 工作平台搭建工人",
+                  "Metal scaffold / working platform competency", "金屬棚架 / 工作平台搭建資格",
+                  "Cap. 59I Construction Sites (Safety) Regulations", "Cap. 59I 建築地盤（安全）規例")
     if lifting:
         _training("Lifting supervisor", "吊運督導",
                   "Lifting supervisor training", "吊運督導訓練",

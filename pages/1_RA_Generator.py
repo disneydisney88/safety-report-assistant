@@ -19,6 +19,7 @@ from services.ai_prompts import (
 )
 from services.excel_export import build_ra_excel
 from services.pdf_export import build_ra_pdf
+from services.activity_ra import build_activity_grouped_items
 from services.file_extract import clean_extracted_steps, extract_text_from_upload, infer_steps_from_ms_text
 from services.language_tools import (
     CHINESE_LANGUAGES,
@@ -607,38 +608,40 @@ def _fallback_ra_zh(data: dict) -> RADraft:
             item["source_step_text_translated"] = joined_steps
             items.append(item)
         return RADraft(disclaimer=DISCLAIMER, overall_risk_level="待確認", items=items)
-    for record in step_records(data.get("confirmed_steps", [])):
-        if bmu:
-            item = bmu_item_for_step(data, _bmu_hazard_id_for_step(record["step_text"]))
-        elif scaffold:
+    if scaffold:
+        for record in step_records(data.get("confirmed_steps", [])):
             hazard_id = _scaffold_hazard_id_for_step(record["step_text"])
             source = {"source_step_id": record["source_step_id"], "step_text": record["step_text"]}
             display = scaffold_required_row(data, hazard_id, source, chinese=True)
             item = {_DISPLAY_TO_ITEM_KEYS[key]: value for key, value in display.items() if key in _DISPLAY_TO_ITEM_KEYS}
-        else:
-            matched = _best_record_for_step(record["step_text"], corpus_records)
-            if matched is None:
-                item = {
-                    "initial_risk_rating": _rating_from_matrix(matrix, 2, 5),
-                    "residual_risk_rating": _residual_rating_from_matrix(matrix, 5, str(matched.get("hazards", "")) if matched else ""),
-                    **ZH_GENERIC_ITEM,
-                }
-            else:
-                item = _zh_item_from_record(matched, matrix)
-        item["source_step_id"] = record["source_step_id"]
-        item["source_step_text_original"] = record["step_text"]
-        item["source_step_text_translated"] = record["step_text"]
-        item["work_step"] = record["step_text"]
-        items.append(item)
+            item["source_step_id"] = record["source_step_id"]
+            item["source_step_text_original"] = record["step_text"]
+            item["source_step_text_translated"] = record["step_text"]
+            item["work_step"] = record["step_text"]
+            items.append(item)
+        return RADraft(disclaimer=DISCLAIMER, overall_risk_level="待確認", items=items)
+    # General construction: group steps into activity-based rows instead of one
+    # generic row per Method Statement sentence (which produced 40+ near-
+    # identical rows). Steps with a specific master-DB match keep that content.
+    items = build_activity_grouped_items(
+        data, matrix, _rating_from_matrix, step_records, data.get("report_language", "Traditional Chinese"),
+    )
     return RADraft(disclaimer=DISCLAIMER, overall_risk_level="待確認", items=items)
 
 
 def fallback_ra(data: dict) -> RADraft:
     if data.get("report_language", "English") in CHINESE_LANGUAGES:
         return _fallback_ra_zh(data)
+    matrix = data.get("risk_matrix", {})
+    # Group English general-construction steps into activity rows too, unless
+    # it is a specialised job the legacy per-record library covers well.
+    if not is_bmu_swp_work(data) and not is_scaffold_dismantling_work(data):
+        items = build_activity_grouped_items(
+            data, matrix, _rating_from_matrix, step_records, data.get("report_language", "English"),
+        )
+        return RADraft(disclaimer=DISCLAIMER, overall_risk_level="To be confirmed", items=items)
     items = []
     library_records = data.get("matched_library_records", [])
-    matrix = data.get("risk_matrix", {})
     severity_scale = matrix.get("severity_scale", [])
     likelihood_scale = matrix.get("likelihood_scale", [])
     default_severity = severity_scale[-1] if severity_scale else {"code": "S5", "score": 5, "label_en": "Catastrophic"}
@@ -759,6 +762,8 @@ _SEVERITY_IRREDUCIBLE_TOKENS = (
     "壓傷", "crush", "被困", "trapped",
     "公眾", "public", "行人", "pedestrian",
     "結構", "structural", "假支架", "falsework", "回頂",
+    "墮下", "墮入", "墜落", "fall from height", "fall into", "falling load", "falling object",
+    "井口", "開口", "孔洞", "opening",
 )
 
 
@@ -2230,14 +2235,21 @@ if st.session_state.get("ra_stage") == "generated" and "ra_draft" in st.session_
             "如涉及物料吊機：Cap. 59J LALG 規例檢驗及證書",
         ]
     if pre_flags.get("scaffolding") == "Yes" or is_scaffold_dismantling_work(data):
-        statutory_extra += [
-            "Cap. 59I 建築地盤(安全)規例 — 棚架檢查及表格五 (Form 5)",
-            "《竹棚架工作安全守則》(Code of Practice for Bamboo Scaffolding Safety)",
-        ]
+        statutory_extra.append("Cap. 59I 建築地盤(安全)規例 — 棚架 / 工作平台檢查及表格五 (Form 5)")
+        # Only cite the bamboo CoP when bamboo is actually used; metal scaffold
+        # jobs should not carry bamboo scaffolding requirements.
+        if any(t in steps_corpus for t in ["竹棚", "竹枝", "竹料"]) or "bamboo" in steps_corpus.lower():
+            statutory_extra.append("《竹棚架工作安全守則》(Code of Practice for Bamboo Scaffolding Safety)")
+        elif any(t in steps_corpus for t in ["金屬棚", "金属棚", "金屬工作平台"]) or "metal scaffold" in steps_corpus.lower():
+            statutory_extra.append("《金屬棚架工作安全守則》/ 工作平台安全要求 (metal scaffold / working platform safety)")
     if pre_flags.get("lifting") == "Yes":
-        statutory_extra.append("Cap. 59J 起重機械及起重裝置規例 (LALG) — 檢驗證書 Form 3 / 4 / 5 / 7")
-    if pre_flags.get("confined_space") == "Yes" or data.get("confined_space") == "Yes":
+        statutory_extra.append("Cap. 59J 起重機械及起重裝置規例 (LALG) — 適用檢驗 / 測試證書，實際表格由合資格檢驗員按設備類別確認")
+    # Confined space is conditional: only mandatory when the work actually
+    # enters a formed confined space. Otherwise state it as a conditional note.
+    if data.get("confined_space") == "Yes" or any(t in steps_corpus for t in ["密閉空間", "進入井內", "缺氧"]):
         statutory_extra.append("Cap. 59AE 密閉空間規例及《密閉空間工作安全守則》")
+    elif pre_flags.get("confined_space") == "Yes" or any(t in steps_corpus for t in ["井內", "豎井", "沙井"]):
+        statutory_extra.append("如井身深度或封閉已構成密閉空間並需要進入，須另行執行 Cap. 59AE 密閉空間評估及許可證（如適用）")
     if pre_flags.get("electrical") == "Yes" and not is_bmu_swp_work(data):
         statutory_extra.append("工廠及工業經營(電力)規例 — 如適用；並按工地電力安全規定執行 RCD / ELCB 及註冊電業工程人員檢查")
     if pre_flags.get("hot_work") == "Yes":
