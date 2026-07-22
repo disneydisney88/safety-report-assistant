@@ -19,7 +19,11 @@ from services.ai_prompts import (
 )
 from services.excel_export import build_ra_excel
 from services.pdf_export import build_ra_pdf
-from services.activity_ra import are_activity_grouped_rows, build_activity_grouped_items
+from services.activity_ra import (
+    are_activity_grouped_rows,
+    build_activity_grouped_items,
+    remove_generic_and_duplicate_rows,
+)
 from services.file_extract import clean_extracted_steps, extract_text_from_upload, infer_steps_from_ms_text
 from services.language_tools import (
     CHINESE_LANGUAGES,
@@ -1140,6 +1144,22 @@ def quality_check_ra(data: dict, rows: list[dict[str, str]]) -> dict[str, object
         missing = [token.upper() for token in required_tokens if token not in hazard_text]
         if missing:
             comments.append("Missing scaffold dismantling critical hazards: " + ", ".join(missing))
+    # Quality gate: generic backfill rows are prohibited, and an inflated table
+    # signals sentence-by-sentence generation instead of phase-based RA.
+    generic_count = sum(
+        1 for row in rows
+        if any(marker in " ".join(str(row.get(key, "")) for key in ("Work Step", "Hazard")) for marker in _GENERIC_ROW_MARKERS)
+    )
+    if generic_count:
+        comments.append(
+            f"{generic_count} generic fallback row(s) detected — regenerate with trade-specific hazard grouping. "
+            f"檢測到 {generic_count} 行萬能後備行，須以工序歸納方式重新生成。"
+        )
+    if len(rows) > 25:
+        comments.append(
+            f"RA table has {len(rows)} rows — likely sentence-by-sentence generation. Merge into 15-20 activity-based rows. "
+            f"風險評估表有 {len(rows)} 行，疑似逐句生成；請歸納為 15-20 個工序行。"
+        )
     if comments:
         result = "REVISE REQUIRED"
     return {"result": result, "comments": comments}
@@ -1186,61 +1206,43 @@ def ensure_required_ra_rows(data: dict, rows: list[dict[str, str]]) -> list[dict
                 exploded_rows.append(row)
         rows = exploded_rows
 
-    def generic_step_row(step: str) -> dict[str, str]:
-        if chinese:
-            return {
-                "Work Step": step,
-                "Hazard": ZH_GENERIC_ITEM["hazard"],
-                "Cause of Hazard": ZH_GENERIC_ITEM["cause_of_hazard"],
-                "Possible Consequence": ZH_GENERIC_ITEM["possible_consequence"],
-                "Persons at Risk": ZH_GENERIC_ITEM["persons_at_risk"],
-                "Initial Risk": _rating_from_matrix(matrix, 2, 5),
-                "Existing Controls": ZH_GENERIC_ITEM["existing_control_measures"],
-                "Additional Controls Required": ZH_GENERIC_ITEM["additional_control_measures_required"],
-                "Residual Risk": _residual_rating_from_matrix(matrix, 5, str(ZH_GENERIC_ITEM.get("hazard", ""))),
-                "Legal / CoP Reference": ZH_GENERIC_ITEM["legal_cop_reference"],
-                "Permit / Competent Person": ZH_GENERIC_ITEM["permit_certificate_competent_person_required"],
-                "Inspection / Monitoring": ZH_GENERIC_ITEM["inspection_monitoring_points"],
-                "Responsible Person": ZH_GENERIC_ITEM["responsible_person"],
-                "Remarks": ZH_GENERIC_ITEM["remarks_items_to_be_confirmed"],
-            }
-        display_step = "Confirmed work step requiring risk assessment" if re.search(r"[\u4e00-\u9fff]", step) else step
-        return {
-            "Work Step": display_step,
-            "Hazard": "Fall, falling object, unsafe access or unsafe working platform related to the confirmed work step",
-            "Cause of Hazard": "Access, edge protection, material restraint or working platform condition not adequately controlled for the actual site condition",
-            "Possible Consequence": "Serious injury or fatality; injury to persons below; property damage",
-            "Persons at Risk": "Workers, supervisors, subcontractors and persons nearby",
-            "Initial Risk": _rating_from_matrix(matrix, 2, 5),
-            "Existing Controls": "Follow approved Method Statement; pre-work briefing; provide safe working platform and access; establish exclusion zone and warning signs; use suitable PPE",
-            "Additional Controls Required": "Competent person inspection of relevant platform, scaffold or equipment; enhanced supervision; stage-by-stage work sequence; maintain good housekeeping",
-            "Residual Risk": _residual_rating_from_matrix(matrix, 5, "work at height falling material"),
-            "Legal / CoP Reference": "Hong Kong OSH legislation, Labour Department guidance and relevant Codes of Practice",
-            "Permit / Competent Person": "Working-at-height training, toolbox talk and competent person inspection as required by project",
-            "Inspection / Monitoring": "Pre-work inspection; active monitoring; close-out inspection and record",
-            "Responsible Person": "Site Supervisor / Safety Officer",
-            "Remarks": "Cause and controls shall be verified against actual site condition",
-        }
-
+    # Coverage rule REWRITTEN: an RA covers work PHASES, not MS sentences.
+    # The old per-step generic backfill appended one identical "Confirmed work
+    # step requiring risk assessment" row for every uncovered step (report_13:
+    # 23 such rows on top of 12 good AI rows). Now: classify uncovered lines —
+    # headings / records / approvals never spawn rows; genuine uncovered work
+    # activities are grouped into activity buckets, ONE task-specific row per
+    # bucket, and only if that hazard theme is not already in the table.
     step_meta = step_records(data.get("confirmed_steps", []))
     covered_ids = {str(row.get("Source Step ID", "")).strip() for row in rows if row.get("Source Step ID")}
-    if not activity_grouped_local:
-        for meta in step_meta:
-            step_id = meta["source_step_id"]
-            step = meta["step_text"].strip()
-            if not step:
-                continue
-            text_covered = any(
-                similar_text(step, str(row.get("Source Step Original") or row.get("Source Step Translated") or row.get("Work Step", ""))) >= 0.72
+    uncovered_steps: list[str] = []
+    for meta in step_meta:
+        step_id = meta["source_step_id"]
+        step = meta["step_text"].strip()
+        if not step or step_id in covered_ids:
+            continue
+        text_covered = any(
+            similar_text(step, str(row.get("Source Step Original") or row.get("Source Step Translated") or row.get("Work Step", ""))) >= 0.72
+            for row in rows
+        )
+        if not text_covered:
+            uncovered_steps.append(step)
+    if uncovered_steps:
+        gap_items = build_activity_grouped_items(
+            {"confirmed_steps": uncovered_steps, "report_language": language},
+            matrix, _rating_from_matrix, step_records, language,
+            include_weather=False, include_general=False,
+        )
+        for item in gap_items:
+            hazard_text = str(item.get("hazard", ""))
+            theme_covered = any(
+                similar_text(hazard_text, str(row.get("Hazard", ""))) >= 0.6
+                or similar_text(str(item.get("work_step", "")), str(row.get("Work Step", ""))) >= 0.6
                 for row in rows
             )
-            if step_id not in covered_ids and not text_covered:
-                fallback = generic_step_row(step)
-                fallback["Source Step ID"] = step_id
-                fallback["Source Step Original"] = step
-                fallback["Source Step Translated"] = step
-                rows.append(fallback)
-                covered_ids.add(step_id)
+            if theme_covered:
+                continue
+            rows.append({display_key: str(item.get(item_key, "")) for display_key, item_key in _DISPLAY_TO_ITEM_KEYS.items()})
 
     if is_scaffold_dismantling_work(data):
         existing_hazard_ids = {str(row.get("Hazard ID", "")).strip().upper() for row in rows}
@@ -1342,7 +1344,7 @@ def ensure_required_ra_rows(data: dict, rows: list[dict[str, str]]) -> list[dict
         rows.append(row_zh("weather") if chinese else row_en("weather"))
     if any(keyword in joined for keyword in public_keywords) and not has_public:
         rows.append(row_zh("public") if chinese else row_en("public"))
-    return rows
+    return remove_generic_and_duplicate_rows(rows)
 
 
 def build_hidden_report_prompt(data: dict, step_batch: list[dict[str, str]] | None = None, suppress_extra_rows: bool = False, include_sections: bool = True) -> str:

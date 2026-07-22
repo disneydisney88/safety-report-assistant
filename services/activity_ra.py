@@ -136,6 +136,24 @@ ACTIVITY_BUCKETS: list[dict[str, Any]] = [
         "keep_severity": True,
     },
     {
+        "key": "t4_holdpoint",
+        "keywords": ["t4", "hold point", "控制點", "正式檢查", "最終檢查", "驗收", "檢查並簽發", "簽發證明", "re 同意", "取得批准", "批准後"],
+        "name_zh": "臨時工程 / 模板 / 鋼筋檢查及 T4 控制點",
+        "name_en": "Temporary works / formwork / rebar inspection and T4 hold point",
+        "hazard_zh": "未經檢查或簽署已受力／澆築；檢查時行走鋼筋網刺傷、絆倒；高處檢查墮下",
+        "hazard_en": "Loading / pouring before inspection sign-off; puncture and trips walking on rebar mesh during inspection; fall during inspection at height",
+        "cause_zh": "T4／hold point 未簽署已開始下一工序；檢查通道不安全",
+        "cause_en": "Next stage started before T4 / hold-point sign-off; unsafe inspection access",
+        "consequence_zh": "結構或假支架失效可致命；刺傷、跌倒受傷",
+        "consequence_en": "Fatal structural / falsework failure; puncture and fall injuries",
+        "existing_zh": "設 T4／hold point 制度：模板、支架及鋼筋經 TWC／SRP／工程師檢查並簽署後方可澆築；提供安全檢查通道及行走板",
+        "existing_en": "T4 / hold-point regime: formwork, falsework and rebar inspected and signed off by TWC / SRP / engineer before pouring; safe inspection access and walk boards",
+        "additional_zh": "未簽署前掛「禁止澆築」標示；檢查紀錄存檔；檢查人員佩戴合適 PPE",
+        "additional_en": "'No pouring' tag until signed off; keep inspection records; inspectors wear suitable PPE",
+        "severity": 5,
+        "keep_severity": True,
+    },
+    {
         "key": "curing",
         "keywords": ["養護", "保養", "試件", "灑水", "覆蓋養護", "curing", "test cube"],
         "name_zh": "混凝土養護及試件處理",
@@ -354,6 +372,50 @@ _PRIORITY_SIGNALS: list[tuple[tuple[str, ...], str]] = [
 _BUCKET_BY_KEY = {b["key"]: b for b in ACTIVITY_BUCKETS}
 
 
+# --- Step-type classifier ------------------------------------------------
+# Not every extracted MS line is a hazardous work activity. Headings, record
+# lines and pure approval statements must NOT spawn standalone RA rows; they
+# feed controls / inspection points instead. (Genuine inspections such as
+# pre-use tool checks or T4 hold points DO get their own activity bucket.)
+
+_HEADING_MARKERS = ("〔", "【", "︰以下", "as follows")
+_HEADING_SUFFIXES = ("準備", "工序", "階段", "安排", "如下", "注意事項")
+_RECORD_MARKERS = ("記錄存檔", "拍照記錄", "存檔", "紀錄表", "record only", "for record")
+_APPROVAL_ONLY_MARKERS = ("取得批准", "取得書面批准", "批准後方可", "同意後方可", "approval obtained", "subject to approval")
+
+_ACTION_HINTS = (
+    "拆", "裝", "搭", "吊", "運", "清", "鋪", "綁", "紮", "澆", "築", "挖", "焊", "切",
+    "鑽", "設置", "設立", "施工", "放線", "測量", "接駁", "搬", "養護", "檢查", "測試",
+    "install", "erect", "remove", "dismantl", "lift", "pour", "cast", "cut", "drill",
+    "fix", "set out", "survey", "connect", "transport", "clean", "inspect", "test", "check",
+)
+
+
+def classify_step_type(step_text: str) -> str:
+    """Coarse MS-line type: work_activity / heading / record_only /
+    permit_or_approval. Only work_activity lines may create RA rows."""
+    text = _norm(step_text)
+    stripped = str(step_text or "").strip()
+    if not stripped or len(stripped) < 6:
+        return "record_only"
+    if any(marker in stripped for marker in _HEADING_MARKERS):
+        return "heading"
+    if any(marker in text for marker in _RECORD_MARKERS):
+        return "record_only"
+    if any(marker in text for marker in _APPROVAL_ONLY_MARKERS):
+        return "permit_or_approval"
+    # Short lines ending like a section title ("模板施工前準備") are headings
+    # even when they mention an action word.
+    if len(stripped) <= 12 and stripped.endswith(_HEADING_SUFFIXES):
+        return "heading"
+    has_action = any(hint in text for hint in _ACTION_HINTS)
+    if not has_action:
+        if len(stripped) <= 20 and stripped.endswith(_HEADING_SUFFIXES):
+            return "heading"
+        return "record_only"
+    return "work_activity"
+
+
 def classify_step(step_text: str) -> dict[str, Any] | None:
     """Return the best-matching activity bucket for a step, or None."""
     text = _norm(step_text)
@@ -382,6 +444,8 @@ def build_activity_grouped_items(
     rating_fn: Callable[[dict, int, int], str],
     step_records_fn: Callable[[list[str]], list[dict[str, str]]],
     language: str,
+    include_weather: bool = True,
+    include_general: bool = True,
 ) -> list[dict[str, Any]]:
     """Classify confirmed steps into activity buckets and emit ONE row per
     activity that has steps (plus a single general row for unmatched steps and
@@ -392,11 +456,18 @@ def build_activity_grouped_items(
         return str(bucket.get(f"{field}_zh" if chinese else f"{field}_en", ""))
 
     records = step_records_fn(data.get("confirmed_steps", []))
-    # Preserve first-appearance order of buckets.
+    # Preserve first-appearance order of buckets. Lines that are headings,
+    # record-only or approval statements never spawn RA rows.
     order: list[str] = []
     grouped: dict[str, dict[str, Any]] = {}
     for record in records:
-        bucket = classify_step(record["step_text"]) or GENERAL_BUCKET
+        if classify_step_type(record["step_text"]) != "work_activity":
+            continue
+        bucket = classify_step(record["step_text"])
+        if bucket is None:
+            if not include_general:
+                continue
+            bucket = GENERAL_BUCKET
         key = bucket["key"]
         if key not in grouped:
             grouped[key] = {"bucket": bucket, "records": []}
@@ -451,7 +522,10 @@ def build_activity_grouped_items(
             ),
         })
 
-    # Always append a weather / emergency row (site-wide control).
+    if not include_weather:
+        return items
+
+    # Append a site-wide weather / emergency row.
     wb = _WEATHER_BUCKET
     items.append({
         "source_step_id": "ENV",
@@ -475,3 +549,40 @@ def build_activity_grouped_items(
         "remarks_items_to_be_confirmed": "",
     })
     return items
+
+
+# Markers of the retired one-size-fits-all backfill row. Any row still carrying
+# them (e.g. restored from an old session draft) is deleted before export —
+# generic fallback rows are prohibited in the final table.
+GENERIC_ROW_MARKERS = (
+    "Confirmed work step requiring risk assessment",
+    "Fall, falling object, unsafe access or unsafe working platform related to the confirmed work step",
+    "與工序相關的高處墮下、物料墮下、通道或作業面不安全",
+)
+
+
+def _compact(value: Any) -> str:
+    return "".join(str(value or "").split()).lower()
+
+
+def remove_generic_and_duplicate_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
+    """Duplicate killer run before export: drop retired generic rows and
+    collapse near-identical repeats (same hazard + cause + existing controls
+    may appear at most twice)."""
+    cleaned: list[dict[str, str]] = []
+    fingerprint_counts: dict[tuple[str, str, str], int] = {}
+    for row in rows:
+        blob = " ".join(str(row.get(key, "")) for key in ("Work Step", "Hazard", "Existing Controls"))
+        if any(marker in blob for marker in GENERIC_ROW_MARKERS):
+            continue
+        fingerprint = (
+            _compact(row.get("Hazard", ""))[:120],
+            _compact(row.get("Cause of Hazard", ""))[:120],
+            _compact(row.get("Existing Controls", ""))[:120],
+        )
+        fingerprint_counts[fingerprint] = fingerprint_counts.get(fingerprint, 0) + 1
+        if fingerprint_counts[fingerprint] > 2:
+            continue
+        cleaned.append(row)
+    # Never return an empty table: the caller's fallback path guarantees rows.
+    return cleaned or rows
